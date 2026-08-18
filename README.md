@@ -6,7 +6,7 @@ that connects Claude (Desktop or Code) to a processor running the MCP for Crestr
 exposing the system as MCP tools over stdio. It speaks the MCP for Crestron text protocol
 (see [`PROTOCOL.md`](PROTOCOL.md)) over TCP, with secure-key + TLS authentication.
 
-[![MCP for Crestron: controlling a boardroom from Claude in plain English](demo-poster.jpg)](https://solutionav.com.au/crestron-mcp/)
+[![MCP for Crestron: controlling a boardroom from Claude in plain English](demo-poster.jpg)](https://solutionav.com.au/mcp-for-crestron/media/mcp-for-crestron-demo-full.mp4)
 
 *Talk to your Crestron system in plain English. [Watch the full demo (1:19) »](https://solutionav.com.au/mcp-for-crestron/media/mcp-for-crestron-demo-full.mp4)*
 
