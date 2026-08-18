@@ -8,7 +8,7 @@ exposing the system as MCP tools over stdio. It speaks the MCP for Crestron text
 
 [![MCP for Crestron: controlling a boardroom from Claude in plain English](demo-poster.jpg)](https://solutionav.com.au/crestron-mcp/)
 
-*[Watch the demo](https://solutionav.com.au/crestron-mcp/): talk to your Crestron system in plain English.*
+*Talk to your Crestron system in plain English. [Watch the full demo (1:19) »](https://solutionav.com.au/mcp-for-crestron/media/mcp-for-crestron-demo-full.mp4)*
 
 The client is **free**. Controlling a processor requires that processor to be licensed
 (or on a free trial). See [Licensing](#licensing). One processor licence is AUD $249
