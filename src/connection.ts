@@ -34,6 +34,11 @@ const TRIAL_HOST = (() => {
  *  server-side and read instantly, so they don't wait). */
 const CONFIRM = (process.env.CRESTRON_CONFIRM ?? "1") !== "0";
 const SETTLE_MS = Math.max(0, Number(process.env.CRESTRON_SETTLE_MS ?? 350) || 0);
+/** When a numeric set reads back a different numeric value, look again after this long. A
+ *  positioner (shade, motor) reports idle while it travels, and its feedback catches up over the
+ *  travel time, so one instant read can't tell "moving" from "didn't move". CRESTRON_RECHECK_MS=0
+ *  turns the second look off. */
+const RECHECK_MS = Math.max(0, Number(process.env.CRESTRON_RECHECK_MS ?? 1000) || 0);
 
 /** Render a millisecond duration as a short human phrase for the LLM ("2 days 4 hours"). */
 function humanizeMs(ms: number): string {
@@ -70,19 +75,60 @@ function valuesMatch(a: unknown, b: unknown): boolean {
   return false;
 }
 
+function isNumeric(v: unknown): boolean {
+  if (v === undefined || v === null) return false;
+  const s = String(v).trim();
+  return s !== "" && !Number.isNaN(Number(s));
+}
+
+/** "; scheduled to set 0 in ~5s" for a STATE carrying a pending action, else "". */
+function pendingPhrase(state: Record<string, unknown>): string {
+  const p = state.pending as Record<string, unknown> | undefined;
+  if (!p || typeof p !== "object") return "";
+  const inMs = typeof p.in_ms === "number" ? ` in ~${humanizeShort(p.in_ms)}` : "";
+  const action = String(p.action ?? "set").toLowerCase();
+  return `; scheduled to ${action} ${p.value ?? ""}${inMs}`.replace(/\s+$/, "");
+}
+
+/** A settled numeric read that missed a numeric set. Worth a second look before reporting,
+ *  because the device may still be travelling toward the target. */
+function needsRecheck(state: Record<string, unknown>, commanded?: string): boolean {
+  if (!RECHECK_MS || commanded === undefined || !state || typeof state !== "object" || state.error) return false;
+  if (state.state !== undefined && state.state !== "idle") return false;
+  return isNumeric(state.value) && isNumeric(commanded) && !valuesMatch(state.value, commanded);
+}
+
+/** Summary from two reads RECHECK_MS apart, judged by how the feedback behaved: reached the
+ *  target, moving toward it, or holding still. No device-type knowledge needed. */
+function summarizeRecheck(first: Record<string, unknown>, second: Record<string, unknown>, commanded: string): string {
+  if (!second || second.error || (second.state !== undefined && second.state !== "idle") || !isNumeric(second.value)) {
+    return summarizeState(second, commanded);
+  }
+  const target = Number(commanded);
+  const was = Number(first.value);
+  const now = Number(second.value);
+  const pendingPart = pendingPhrase(second);
+  const secs = humanizeShort(RECHECK_MS);
+  if (now === target) return `now ${String(second.value)}${pendingPart}`;
+  if (now !== was) {
+    if (Math.abs(target - now) < Math.abs(target - was)) {
+      return (
+        `moving toward ${commanded}, now ${now} (was ${was} ${secs} earlier); the device is still ` +
+        `travelling, check again once it settles${pendingPart}`
+      );
+    }
+    return `feedback changing, now ${now} (was ${was} ${secs} earlier), set ${commanded}${pendingPart}`;
+  }
+  return `set ${commanded} accepted, feedback still ${now} and not moving${pendingPart}`;
+}
+
 /** One-line, LLM-facing summary of a STATE read taken just after an action: in-flight (fading /
  *  pulsing / scheduled) or settled (current value, flagged when it differs from what was set). */
 function summarizeState(state: Record<string, unknown>, commanded?: string): string {
   if (!state || typeof state !== "object") return "state unavailable";
   if (state.error) return `could not read back state: ${String(state.error)}`;
 
-  let pendingPart = "";
-  const p = state.pending as Record<string, unknown> | undefined;
-  if (p && typeof p === "object") {
-    const inMs = typeof p.in_ms === "number" ? ` in ~${humanizeShort(p.in_ms)}` : "";
-    const action = String(p.action ?? "set").toLowerCase();
-    pendingPart = `; scheduled to ${action} ${p.value ?? ""}${inMs}`.replace(/\s+$/, "");
-  }
+  const pendingPart = pendingPhrase(state);
 
   const value = state.value;
   if (state.state === "ramping") {
@@ -534,7 +580,10 @@ export class CrestronConnection {
     try {
       if (settleMs > 0) await new Promise((r) => setTimeout(r, settleMs));
       const state = await this.queryDevice(deviceId);
-      return { state, status: summarizeState(state, commanded) };
+      if (!needsRecheck(state, commanded)) return { state, status: summarizeState(state, commanded) };
+      await new Promise((r) => setTimeout(r, RECHECK_MS));
+      const again = await this.queryDevice(deviceId);
+      return { state: again, status: summarizeRecheck(state, again, commanded as string) };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       return { state: { error: msg }, status: `could not read back state: ${msg}` };
@@ -626,15 +675,29 @@ export class CrestronConnection {
 
     // Confirm each device that took, folding its live state into that entry. Settle once up front
     // if any instant entries were sent (their feedback joins lag); timed entries read instantly.
+    // Instant entries whose numeric feedback missed get one shared second look, so a scene of
+    // travelling shades waits RECHECK_MS once, not once per shade.
     if (CONFIRM && results.length > 0) {
       if (instant.length > 0 && SETTLE_MS > 0) await new Promise((r) => setTimeout(r, SETTLE_MS));
+      const commandedById = new Map(instant.map((a) => [a.device_id, a.value]));
+      const recheck: Array<{ r: Record<string, unknown>; first: Record<string, unknown>; commanded: string }> = [];
       for (const r of results) {
         if (r.success === false) continue;
         const id = String(r.id ?? "");
         if (!id) continue;
+        const commanded = commandedById.get(id);
         const c = await this.confirm(id, 0);
-        r.status = c.status;
+        r.status = commanded !== undefined ? summarizeState(c.state, commanded) : c.status;
         r.confirmed = c.state;
+        if (needsRecheck(c.state, commanded)) recheck.push({ r, first: c.state, commanded: commanded as string });
+      }
+      if (recheck.length > 0) {
+        await new Promise((res) => setTimeout(res, RECHECK_MS));
+        for (const { r, first, commanded } of recheck) {
+          const c = await this.confirm(String(r.id), 0);
+          r.status = c.state.error ? c.status : summarizeRecheck(first, c.state, commanded);
+          r.confirmed = c.state;
+        }
       }
     }
 

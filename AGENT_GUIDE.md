@@ -20,7 +20,7 @@ How control works: you are the operator of an existing system, and the feedback 
 
 You only need to read state first for a toggle, so you press it only when the current state differs from the goal and do not flip away from it. When a command sets the state explicitly (a discrete on or off button, or an analog level), just send it. For a multi-device request, read the current states you need first, then make all the changes at once in a single scene. For a scene, use what you learned about the room to catch a needed choice, such as which microphone, and ask about it first rather than guessing.
 
-Analog levels (volume, lighting) are states. By default set the level directly; fade only when the user asks or the device's name or description gives a fade time, and when a device has a fade time apply it to every change to that level, not just the first (the ramp tool describes how a device's fade time scales to the size of the move). To turn any audio off, mute it and leave its level untouched, never fade or zero the level to silence it: the level is a remembered setting, so unmuting brings the sound straight back. To bring an audio input into use, such as a mic to speak through or a source to hear, unmute it and make sure its level is up to a working value, since a muted channel may be sitting at 0.
+Analog levels (volume, lighting) are states. By default set the level directly; fade only when the user asks or the device's name or description gives a fade time, and when a device has a fade time apply it to every change to that level, not just the first (the ramp tool describes how a device's fade time scales to the size of the move). To turn any audio off, mute it and leave its level untouched, never fade or zero the level to silence it: the level is a remembered setting, so unmuting brings the sound straight back. To bring an audio input into use, such as a mic to speak through or a source to hear, unmute it and make sure its level is up to a working value, since a muted channel may be sitting at 0. Shades, screens and other motorised positioners take time to travel: they report idle while moving and their feedback catches up over the travel time, so a level that reads back short of the target is usually still on its way. The control tools say when a device is moving toward its target; let it settle and read it again before concluding a set failed, and do not press its other buttons while it travels.
 
 Analog value scale: analog values are 0 to 65535, usually a level where 65535 is 100% (so 50% is about 32768). Some devices instead use signed values (two's complement): 0 to 32767 mean 0 to +32767, and 32768 to 65535 mean -32768 to -1 (the value minus 65536). These appear for things like dB gain in tenths of a dB, for example -80.0 dB is -800, sent as 64736, and raising it toward 0 dB ramps up to 0. Use the signed/dB reading only when the device's name, unit or description says so; otherwise treat the value as a plain 0 to 65535 level.
 
@@ -258,12 +258,23 @@ Every `control_crestron_device`, `ramp_crestron_device`, `pulse_crestron_device`
 separate query:
 
 - `status` - a short phrase: `"now 50000"`, `"fading to 0, ~10s left"`,
-  `"pulsing, releases in ~500ms"`, `"scheduled to set 1 in ~30s"`, or, on a
-  discrepancy, `"feedback reads 47000 (set 50000)"`.
+  `"pulsing, releases in ~500ms"`, `"scheduled to set 1 in ~30s"`, or, when the
+  feedback has not reached the value you set, one of
+  `"moving toward 65535, now 27060 (was 7020 1.0s earlier) ..."` (still travelling) or
+  `"set 32768 accepted, feedback still 0 and not moving"`.
 - `confirmed` - the full live state (the same shape `query_crestron_device` returns).
 
-Read these instead of assuming success. A mismatch in `status` (or `confirmed.value` not
+Read these instead of assuming success. A "not moving" status (or `confirmed.value` not
 matching what you set) is real signal: surface it rather than reporting "done".
+
+Positioners (shades, screens, motorised lifts) are different from lights: the processor
+reports them idle while the motor travels, and their feedback (often a time-based
+estimate in the program) catches up over the travel time. So when a numeric set reads back
+short of its target, the client looks again about a second later and judges by what the
+feedback did. "Moving toward" means the set worked and the device is on its way; let it
+settle, then read it again if you need the final position. Do not press the device's other
+buttons (open, close, stop) while it travels, and do not fire several queries in the same
+instant expecting them to differ.
 
 One nuance for fades: the confirmation is taken the instant the action starts, so a ramp
 reports the in-flight picture (`"fading to X, ~Ns left"`) and its target, not the final
@@ -273,8 +284,9 @@ the target in the status already tells you where it is heading.
 
 Tuning (host-side): an immediate set waits a short settle (~350ms) for the feedback join
 to move before reading back; ramps, pulses, and scheduled actions read instantly because
-the processor tracks them itself. The host can set `CRESTRON_SETTLE_MS`, or disable the
-read-back entirely with `CRESTRON_CONFIRM=0`.
+the processor tracks them itself. A numeric set that misses gets a second read after
+~1s. The host can set `CRESTRON_SETTLE_MS` and `CRESTRON_RECHECK_MS` (0 turns the second
+read off), or disable the read-back entirely with `CRESTRON_CONFIRM=0`.
 
 ## Time
 

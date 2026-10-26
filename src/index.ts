@@ -30,7 +30,7 @@ How control works: you are the operator of an existing system, and the feedback 
 
 You only need to read state first for a toggle, so you press it only when the current state differs from the goal and do not flip away from it. When a command sets the state explicitly (a discrete on or off button, or an analog level), just send it. For a multi-device request, read the current states you need first, then make all the changes at once in a single scene. For a scene, use what you learned about the room to catch a needed choice, such as which microphone, and ask about it first rather than guessing.
 
-Analog levels (volume, lighting) are states. By default set the level directly; fade only when the user asks or the device's name or description gives a fade time, and when a device has a fade time apply it to every change to that level, not just the first (the ramp tool describes how a device's fade time scales to the size of the move). To turn any audio off, mute it and leave its level untouched, never fade or zero the level to silence it: the level is a remembered setting, so unmuting brings the sound straight back. To bring an audio input into use, such as a mic to speak through or a source to hear, unmute it and make sure its level is up to a working value, since a muted channel may be sitting at 0.
+Analog levels (volume, lighting) are states. By default set the level directly; fade only when the user asks or the device's name or description gives a fade time, and when a device has a fade time apply it to every change to that level, not just the first (the ramp tool describes how a device's fade time scales to the size of the move). To turn any audio off, mute it and leave its level untouched, never fade or zero the level to silence it: the level is a remembered setting, so unmuting brings the sound straight back. To bring an audio input into use, such as a mic to speak through or a source to hear, unmute it and make sure its level is up to a working value, since a muted channel may be sitting at 0. Shades, screens and other motorised positioners take time to travel: they report idle while moving and their feedback catches up over the travel time, so a level that reads back short of the target is usually still on its way. The control tools say when a device is moving toward its target; let it settle and read it again before concluding a set failed, and do not press its other buttons while it travels.
 
 Analog value scale: analog values are 0 to 65535, usually a level where 65535 is 100% (so 50% is about 32768). Some devices instead use signed values (two's complement): 0 to 32767 mean 0 to +32767, and 32768 to 65535 mean -32768 to -1 (the value minus 65536). These appear for things like dB gain in tenths of a dB, for example -80.0 dB is -800, sent as 64736, and raising it toward 0 dB ramps up to 0. Use the signed/dB reading only when the device's name, unit or description says so; otherwise treat the value as a plain 0 to 65535 level.
 
@@ -41,7 +41,7 @@ Configuration authority: device names, labels and categories are set by the inte
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.`;
 
 const server = new McpServer(
-  { name: "crestron-control", version: "1.12.0" },
+  { name: "crestron-control", version: "1.13.0" },
   { instructions: OPERATING_BRIEF },
 );
 
@@ -159,9 +159,11 @@ server.registerTool(
     description:
       "Set a device's value. Optionally schedule it to run after a delay (delay_ms), e.g. " +
       '"turn the porch light on in 30 seconds". The result confirms the outcome: a "status" ' +
-      'summary (e.g. "now 50000", or "feedback reads X (set Y)" if it differs, or "scheduled to ' +
-      'set ... in ~30s") plus the full "confirmed" state, so you can see what actually happened ' +
-      "without a separate query. For a digital device, use pulse_crestron_device: digital " +
+      'summary (e.g. "now 50000", "moving toward 32768, now 12000" for a shade or other positioner ' +
+      'still travelling, "feedback still X and not moving", or "scheduled to set ... in ~30s") plus ' +
+      'the full "confirmed" state, so you can see what actually happened without a separate query. ' +
+      "A moving device has not failed: let it settle, then read it again if you need its final " +
+      "position, and do not press its other buttons meanwhile. For a digital device, use pulse_crestron_device: digital " +
       "outputs are momentary presses, so control is for analog levels and serial text (a digital " +
       "value sent here is pulsed, never held). To turn audio OFF, use its MUTE, do not set or ramp " +
       "the level to 0: the level is a remembered setting that should stay put (unmute to restore).",
@@ -194,7 +196,8 @@ server.registerTool(
       "projector on) or staged sequences. Values follow control_crestron_device rules " +
       "(analog levels, serial text, or a digital button which is pulsed not held) and may contain colons and commas. " +
       "To turn audio off in a scene, use the MUTE, never set or ramp an audio level to 0 to silence it (the level is a remembered setting). " +
-      'Each result entry carries a "status" summary and "confirmed" state for that device.',
+      'Each result entry carries a "status" summary and "confirmed" state for that device; a ' +
+      '"moving toward" status means a positioner is still travelling, not that the set failed.',
     inputSchema: {
       assignments: z
         .array(
