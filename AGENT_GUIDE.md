@@ -14,7 +14,7 @@ client, the Python client, and this block match (whitespace aside). The rest of
 this guide expands on it.
 
 ```text
-You operate a Crestron AV system on the installer's behalf: lighting, displays, audio, climate, shades. The system is already complete and in daily use, with its own control surfaces (touchpanels, keypads, often an XPanel); you are an additive natural-language layer on top of it. Operate it through your tools, and never build, replace, or offer to build interfaces, dashboards or apps. Act like a calm, competent AV technician. Discover the system before acting, and never guess a device's state, read it. When you first work with a room, learn it by listing its devices and reading their names and descriptions as your own reference, not as output to the user; if something you need is genuinely unclear, ask a brief question before acting.
+You operate a Crestron AV system on the installer's behalf: lighting, displays, audio, climate, shades. The system is already complete and in daily use, with its own control surfaces (touchpanels, keypads, often an XPanel); you are an additive natural-language layer on top of it. Operate it through your tools, and never build, replace, or offer to build interfaces, dashboards or apps. Act like a calm, competent AV technician. Discover the system before acting, and never guess a device's state, read it. When you first work with a room, learn it by listing its devices and reading their names and descriptions as your own reference, not as output to the user; if something you need is genuinely unclear, ask a brief question before acting. When a current room is set, a request that names no room means that room, and you act in another room only when the user names it; when the user says they are in, or want to work in, a particular room, set it as the current room.
 
 How control works: you are the operator of an existing system, and the feedback is your view of its current state. Digital outputs are momentary presses (the control and pulse tools describe how to drive them): a toggle press flips a state, while on and off are usually separate buttons. An output usually has a corresponding feedback that reports the real state (a mute toggle has a "mute on" state); some outputs have no feedback.
 
@@ -74,7 +74,8 @@ missing or wrong in the config, tell the user; you can't fix it from a tool call
 - `discover_crestron_system()` - rooms, categories, device counts. Call this first.
 - `list_crestron_rooms()` - rooms with device counts.
 - `list_crestron_devices(room?, category?)` - devices, optionally filtered. Room
-  matching is case-insensitive and accepts the room name or id.
+  matching is case-insensitive and accepts the room name or id. See LABEL_GUIDE.md
+  for how integrators encode fade times, scales and rules in device labels.
 - `query_crestron_device(device_id)` - live state of one device: value plus whether
   it's idle / ramping / pulsing, and any pending scheduled action (see Reading state).
 - `get_crestron_time()` - the processor's current time (epoch ms + ISO 8601).
@@ -88,7 +89,13 @@ missing or wrong in the config, tell the user; you can't fix it from a tool call
   to a value over a duration.
 - `cancel_crestron_device(device_id)` - stop a ramp/pulse in progress and clear any
   pending delayed action on a device, without otherwise changing its value.
-- `get_room_status(room_name)` - every device in a room with its state.
+- `get_room_status(room_name?)` - every device in a room with its state (the current
+  room if none is given).
+- `set_crestron_room(room)` - set the current room, so requests that name no room
+  apply to it; `""` or `"none"` clears it. With a current room set,
+  `list_crestron_devices()` with no room lists that room (pass `room: "all"` for every
+  room) and `discover_crestron_system()` reports it as `current_room`. The host can also
+  start in a room with `CRESTRON_ROOM`.
 - `activate_crestron_license(license_key)` - license the processor with a key the user
   provides (see Licensing / activation).
 - `get_crestron_license_status()` - is it licensed now, is it a time-limited trial, how

@@ -18,13 +18,18 @@ import { loadConfig } from "./config.js";
 const cfg = loadConfig();
 const crestron = new CrestronConnection(cfg.host, cfg.port, cfg.auth, cfg.key, cfg.tls);
 
+// The current room: commands and lists that name no room apply here. Starts from
+// CRESTRON_ROOM (a client dedicated to one room, e.g. that room's tablet) and is changed with
+// set_crestron_room. Held per client process, so each chat app instance has its own.
+let currentRoom = (process.env.CRESTRON_ROOM ?? "").trim();
+
 // --- OPERATING BRIEF ---------------------------------------------------------
 // Sent to the model as the MCP server `instructions`. This is the behavioural
 // guide the model actually reads at runtime (tool descriptions + this string);
 // a shipped doc file never reaches it. Keep it in sync (whitespace aside) with
 // the Python client and the "Operating brief" block in AGENT_GUIDE.md;
 // test/brief-parity.mjs enforces it.
-const OPERATING_BRIEF = `You operate a Crestron AV system on the installer's behalf: lighting, displays, audio, climate, shades. The system is already complete and in daily use, with its own control surfaces (touchpanels, keypads, often an XPanel); you are an additive natural-language layer on top of it. Operate it through your tools, and never build, replace, or offer to build interfaces, dashboards or apps. Act like a calm, competent AV technician. Discover the system before acting, and never guess a device's state, read it. When you first work with a room, learn it by listing its devices and reading their names and descriptions as your own reference, not as output to the user; if something you need is genuinely unclear, ask a brief question before acting.
+const OPERATING_BRIEF = `You operate a Crestron AV system on the installer's behalf: lighting, displays, audio, climate, shades. The system is already complete and in daily use, with its own control surfaces (touchpanels, keypads, often an XPanel); you are an additive natural-language layer on top of it. Operate it through your tools, and never build, replace, or offer to build interfaces, dashboards or apps. Act like a calm, competent AV technician. Discover the system before acting, and never guess a device's state, read it. When you first work with a room, learn it by listing its devices and reading their names and descriptions as your own reference, not as output to the user; if something you need is genuinely unclear, ask a brief question before acting. When a current room is set, a request that names no room means that room, and you act in another room only when the user names it; when the user says they are in, or want to work in, a particular room, set it as the current room.
 
 How control works: you are the operator of an existing system, and the feedback is your view of its current state. Digital outputs are momentary presses (the control and pulse tools describe how to drive them): a toggle press flips a state, while on and off are usually separate buttons. An output usually has a corresponding feedback that reports the real state (a mute toggle has a "mute on" state); some outputs have no feedback.
 
@@ -41,7 +46,7 @@ Configuration authority: device names, labels and categories are set by the inte
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.`;
 
 const server = new McpServer(
-  { name: "crestron-control", version: "1.13.0" },
+  { name: "crestron-control", version: "1.14.0" },
   { instructions: OPERATING_BRIEF },
 );
 
@@ -66,6 +71,9 @@ server.registerTool(
   async () => {
     try {
       const system = await crestron.discoverSystem();
+      if (currentRoom && system && typeof system === "object") {
+        (system as Record<string, unknown>).current_room = currentRoom;
+      }
       const content: { type: "text"; text: string }[] = [];
       if (!briefDelivered) {
         briefDelivered = true;
@@ -99,15 +107,65 @@ server.registerTool(
   {
     description:
       "List controllable devices, optionally filtered by room and/or category " +
-      "(Lighting, AV, HVAC, Shades).",
+      "(Lighting, AV, HVAC, Shades). With no room given, a current room (set_crestron_room) " +
+      'filters the list to that room; pass room "all" for every room.',
     inputSchema: {
-      room: z.string().optional().describe("Optional room name or id to filter by."),
+      room: z
+        .string()
+        .optional()
+        .describe('Optional room name or id to filter by; "all" lists every room even when a current room is set.'),
       category: z.string().optional().describe("Optional category to filter by (Lighting, AV, HVAC, Shades)."),
     },
   },
   async ({ room, category }) => {
     try {
-      return ok(await crestron.listDevices(room, category));
+      const wantsAll = room !== undefined && room.trim().toLowerCase() === "all";
+      if (!room && currentRoom) {
+        const devices = await crestron.listDevices(currentRoom, category);
+        return ok({
+          current_room: currentRoom,
+          note: 'Filtered to the current room. Pass room "all" to list every room.',
+          devices,
+        });
+      }
+      return ok(await crestron.listDevices(wantsAll ? undefined : room, category));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.registerTool(
+  "set_crestron_room",
+  {
+    description:
+      "Set the current room, so requests that name no room apply to it (\"lights to 50%\" means " +
+      "this room's lights), and lists and room status default to it. Use it when the user says " +
+      'they are in, or want to work in, a room. An empty room or "none" clears it. The current ' +
+      "room only changes which room is assumed; a request that names another room still goes there.",
+    inputSchema: {
+      room: z.string().describe('Room name or id, as listed by list_crestron_rooms; "" or "none" clears it.'),
+    },
+  },
+  async ({ room }) => {
+    try {
+      const wanted = room.trim();
+      if (!wanted || wanted.toLowerCase() === "none") {
+        const was = currentRoom;
+        currentRoom = "";
+        return ok({ success: true, current_room: null, cleared: was || null });
+      }
+      const rooms = (await crestron.listRooms()) as Array<Record<string, unknown>>;
+      const w = wanted.toLowerCase();
+      const match = Array.isArray(rooms)
+        ? rooms.find((r) => String(r?.name ?? "").toLowerCase() === w || String(r?.id ?? "").toLowerCase() === w)
+        : undefined;
+      if (!match) {
+        const names = Array.isArray(rooms) ? rooms.map((r) => String(r?.name ?? r?.id ?? "")) : [];
+        return ok({ success: false, error: `No room called "${wanted}".`, rooms: names });
+      }
+      currentRoom = String(match.name ?? match.id ?? wanted);
+      return ok({ success: true, current_room: currentRoom, device_count: match.device_count ?? null });
     } catch (e) {
       return fail(e);
     }
@@ -323,15 +381,20 @@ server.registerTool(
 server.registerTool(
   "get_room_status",
   {
-    description: "Get the status of every device in a room.",
+    description: "Get the status of every device in a room (the current room if none is given).",
     inputSchema: {
-      room_name: z.string().describe('Room name or id (e.g. "Conference Room A" or "conf_rm_a").'),
+      room_name: z
+        .string()
+        .optional()
+        .describe('Room name or id (e.g. "Conference Room A" or "conf_rm_a"); omit to use the current room.'),
     },
   },
   async ({ room_name }) => {
     try {
-      const devices = (await crestron.listDevices(room_name)) as unknown[];
-      return ok({ room: room_name, device_count: devices.length, devices });
+      const room = room_name?.trim() || currentRoom;
+      if (!room) return ok({ success: false, error: "No room given and no current room set." });
+      const devices = (await crestron.listDevices(room)) as unknown[];
+      return ok({ room, device_count: devices.length, devices });
     } catch (e) {
       return fail(e);
     }

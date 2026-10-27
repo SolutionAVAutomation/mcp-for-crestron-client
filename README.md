@@ -29,8 +29,11 @@ No download needed. Run it straight from npm:
 claude mcp add crestron \
   --env CRESTRON_HOST=10.0.1.38 \
   --env CRESTRON_KEY=<the processor's secure key> \
-  -- npx -y mcp-for-crestron
+  -- npx -y mcp-for-crestron@latest
 ```
+
+Using LibreChat or another MCP app, or choosing a model: see
+[`OTHER_CLIENTS.md`](OTHER_CLIENTS.md).
 
 ## Configuration
 
@@ -44,17 +47,24 @@ args (`<host> [port]`).
 | `CRESTRON_KEY`  | secure key (mode 2); enables TLS + authentication |
 | `CRESTRON_AUTH` | password (mode 1 only) |
 | `CRESTRON_TLS`  | force TLS without a key |
+| `CRESTRON_ROOM` | optional room to start in; requests that name no room apply to it |
 
 ## Tools
 
 `discover_crestron_system`, `list_crestron_rooms`, `list_crestron_devices`,
 `query_crestron_device`, `get_crestron_time`, `control_crestron_device`,
 `set_crestron_devices`, `pulse_crestron_device`, `ramp_crestron_device`,
-`cancel_crestron_device`, `get_room_status`, `activate_crestron_license`,
+`cancel_crestron_device`, `get_room_status`, `set_crestron_room`, `activate_crestron_license`,
 `get_crestron_license_status`, `start_crestron_trial`.
 
 See [`AGENT_GUIDE.md`](AGENT_GUIDE.md) for how an assistant should use them (timing,
 scenes, ramps, nudge-not-nag licensing etiquette).
+
+## Labels
+
+The assistant only knows your system through the room, category and label set on each
+channel of the modules. [`LABEL_GUIDE.md`](LABEL_GUIDE.md) covers what to put in a label:
+fade times, travel times, scale hints, toggles, and operating rules.
 
 ## Licensing
 

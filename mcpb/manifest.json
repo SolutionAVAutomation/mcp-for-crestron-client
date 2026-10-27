@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "mcp-for-crestron",
   "display_name": "MCP for Crestron",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "icon": "icon.png",
   "description": "Query and control a Crestron 4-Series AV system in natural language.",
   "long_description": "Connects Claude to a Crestron 4-Series processor running the MCP for Crestron modules. Lets you discover rooms and devices, read and set lighting, AV, HVAC and shades, and smoothly ramp analog levels, all in plain English. Talks to the processor over the MCP for Crestron text protocol, with optional password (mode 1) or secure-key + TLS (mode 2) authentication. Crestron is a registered trademark of Crestron Electronics, Inc.; MCP for Crestron is a product of Solution AV Automation, not affiliated with or endorsed by Crestron.",
@@ -20,7 +20,8 @@
         "CRESTRON_HOST": "${user_config.host}",
         "CRESTRON_PORT": "${user_config.port}",
         "CRESTRON_KEY": "${user_config.key}",
-        "CRESTRON_AUTH": "${user_config.password}"
+        "CRESTRON_AUTH": "${user_config.password}",
+        "CRESTRON_ROOM": "${user_config.room}"
       }
     }
   },
@@ -36,6 +37,7 @@
     { "name": "ramp_crestron_device", "description": "Smoothly ramp (fade) an analog device to a value over a duration." },
     { "name": "cancel_crestron_device", "description": "Stop a ramp/pulse in progress and clear any pending delayed action on a device, without otherwise changing its value." },
     { "name": "get_room_status", "description": "Get the status of every device in a room." },
+    { "name": "set_crestron_room", "description": "Set the current room, so requests that name no room apply to it." },
     { "name": "activate_crestron_license", "description": "Activate (license) the processor with a key the user provides, when a command reports the processor is unlicensed. One-time; stored on the processor." },
     { "name": "get_crestron_license_status", "description": "Check the processor's license/trial state: licensed now, whether it's a time-limited trial, remaining trial time, MAC, and a buy URL." },
     { "name": "start_crestron_trial", "description": "Start a free 7-day trial on the processor (no payment). Up to 3 per processor; reports how many remain, or a buy link when used up." }
@@ -66,6 +68,12 @@
       "title": "Password (only for password mode)",
       "description": "Use this only if your processor is set to password mode. Leave blank otherwise. Ignored when a secure key is set.",
       "sensitive": true,
+      "required": false
+    },
+    "room": {
+      "type": "string",
+      "title": "Current room (optional)",
+      "description": "Optional. A room name to start in, so requests that name no room apply to it (handy for a client dedicated to one room). You can also change it in chat.",
       "required": false
     }
   },
