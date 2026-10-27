@@ -43,8 +43,10 @@ DATA:json_string
 - The **value** is always the LAST field of a command/response, so it is parsed
   positionally and **may contain colons** (e.g. `SET:dvd_s1:now playing 12:34`). Earlier
   fields (command, device ID, room, category) must not contain colons; device IDs never do.
-- `BATCH_SET` pairs are comma-separated and each split on its first colon, so a value in a
-  batch may contain colons but **not commas**.
+- `BATCH_SET` pairs are comma-separated and each split on its first colon, so a value sent
+  *in a batch* may contain colons but **not commas**. (The reference client hides this: a
+  scene value containing a comma is sent as its own `SET` instead of in the batch, so callers
+  can use commas freely.)
 - A value must not contain a raw newline (`\n` is the frame delimiter / line terminator).
 - Empty parameters are represented by empty string between colons
 
@@ -334,7 +336,10 @@ Server: DATA:{"device_id":"lounge_a3","value":"13020","type":"analog","state":"i
 **Format:** `SET:device_id:value`
 
 **Value Types:**
-- Digital: `0` or `1`
+- Digital: `1` momentarily **pulses** the output (a button press); `0` is a no-op. A digital
+  output is never held high by the MCP, so a "set high" is a brief press of the default width
+  (300 ms); use `PULSE` to choose the width. Any latched/exclusive behaviour is the integrator's
+  job (interlocks in the SIMPL program). The `OK` echoes the value, e.g. `OK:id:1`.
 - Analog: `0` to `65535`
 - Serial/String: any text; may contain colons (the value is the last field), but not a raw newline
 
@@ -444,8 +449,8 @@ Server: ERROR:1001:Device 'conf_rm_a_lights_level' is not digital; only digital 
 **Format:** `CANCEL:device_id`
 
 - Clears the device's pending scheduled action (a delayed `SET_AFTER` or delayed `PULSE`).
-- **Digital:** if a pulse is in progress (line held high *by the pulse*), it is released to **off**.
-  A line that is high from a plain `SET` (no pulse running) is left untouched.
+- **Digital:** if a pulse is in progress, it is released to **off**. (Digital outputs are momentary,
+  so there is no held-high state from a plain `SET` to leave untouched.)
 - **Analog:** a ramp in progress is **stopped where it is** (the level is not snapped anywhere).
 - Otherwise it changes nothing; it is safe to call when nothing is pending/running.
 
@@ -524,6 +529,52 @@ Reads the processor's own clock. `epoch_ms` is UTC epoch milliseconds (use it to
 ```
 DATA:{"epoch_ms":1718671406000,"iso":"2026-06-18T12:43:26+10:00"}
 ```
+
+---
+
+### 11. Schedules (SCHEDULE_ADD / SCHEDULE_LIST / SCHEDULE_REMOVE / SCHEDULE_ENABLE)
+**Purpose:** Store actions that the processor runs on its own clock, whether or not a client is
+connected. Requires modules 1.11.0 or later (an older processor answers `ERROR:1000`).
+
+Schedules fire whatever the licence state; the licence gate applies only to these commands.
+
+**Add or replace:** `SCHEDULE_ADD:<json>`. Everything after the first colon is the schedule as
+JSON. Supplying the `id` of an existing schedule replaces it; omit `id` to create one (`s1`, `s2`...).
+
+```
+SCHEDULE_ADD:{"name":"Lounge shades down","when":{"type":"sunset","offset_min":-20,"days":["weekdays"]},"actions":[{"device_id":"Lounge_a1","value":"0"},{"device_id":"Lounge_d4","pulse_ms":300}]}
+DATA:{"id":"s1","name":"Lounge shades down","when":{...},"actions":[...],"enabled":true,"created":"2026-10-27 16:10","next_run":"2026-10-27 17:42","replaced":false}
+```
+
+- `when.type`: `once` (needs `date` YYYY-MM-DD and `time`), `daily` (`time`), `weekly` (`time` and
+  `days`), `sunrise` / `sunset` (optional `offset_min`, negative = before, -720..720, and
+  optional `days`). Times are the processor's local 24-hour time, `HH:MM`.
+- `days`: `mon`..`sun` (full names accepted), plus `weekdays` and `weekends`.
+- `actions` (1 to 20, run in order): `{device_id, value}` sets, adding `duration_ms` fades an
+  analog, and `{device_id, pulse_ms}` presses a digital. They run through the same paths as
+  `SET` / `RAMP` / `PULSE`, so a scheduled action supersedes pending work on that device like
+  any other command.
+- At most 50 schedules. Errors come back as `ERROR:1001:<reason>` (bad time, unknown device,
+  one-off in the past, limit reached).
+
+**List:** `SCHEDULE_LIST`
+
+```
+DATA:{"now":"2026-10-27 16:12","time_zone":"...","location":{"latitude":-27.4667,"longitude":153.0167},"sunrise_today":"05:01","sunset_today":"18:02","storage":"data store","count":1,"max":50,"schedules":[{...,"next_run":"2026-10-27 17:42","last_run":null}]}
+```
+
+Each schedule carries `next_run` when enabled, and `last_run` / `last_result` after it has run.
+`location_warning` appears if the processor still has Crestron's default location, in which
+case sunrise and sunset are wrong until the integrator sets the real one.
+
+**Remove:** `SCHEDULE_REMOVE:<id>` -> `OK:SCHEDULE_REMOVE:<id>`
+
+**Pause / resume:** `SCHEDULE_ENABLE:<id>:<1|0>` -> `DATA:<schedule>`
+
+**Reboots and program uploads:** the processor keeps its own copy of every schedule and, at
+start-up, arms each at its next future time. A run that fell due while the processor was down
+or being reprogrammed is skipped, never fired late. A one-off whose time passed while it was
+down is kept but disabled, with `last_result` saying it was missed.
 
 ---
 

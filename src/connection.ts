@@ -704,6 +704,42 @@ export class CrestronConnection {
     return { success: true, results };
   }
 
+  // --- schedules (run on the processor) -------------------------------------
+
+  /** Turn a schedule command's reply into a result. An older processor that doesn't know the
+   *  SCHEDULE_* commands answers unknown-command, which becomes a plain "update the modules". */
+  private scheduleResult(response: string): Record<string, unknown> {
+    if (response.startsWith("DATA:")) return { success: true, ...(JSON.parse(response.slice(5)) as object) };
+    if (response.startsWith("OK")) return { success: true };
+    if (response.startsWith("ERROR:1000")) {
+      return {
+        success: false,
+        error:
+          "This processor's MCP for Crestron modules are too old for schedules. Update the modules " +
+          "(load the latest MCPForCrestron.clz, recompile and upload the program), then try again.",
+      };
+    }
+    if (response.startsWith("ERROR")) return { success: false, error: this.formatError(response) };
+    return { success: false, error: "Invalid response" };
+  }
+
+  async addSchedule(schedule: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.scheduleResult(await this.sendCommand(`SCHEDULE_ADD:${JSON.stringify(schedule)}`));
+  }
+
+  async listSchedules(): Promise<Record<string, unknown>> {
+    return this.scheduleResult(await this.sendCommand("SCHEDULE_LIST"));
+  }
+
+  async removeSchedule(id: string): Promise<Record<string, unknown>> {
+    const r = this.scheduleResult(await this.sendCommand(`SCHEDULE_REMOVE:${id}`));
+    return r.success ? { success: true, removed: id } : r;
+  }
+
+  async enableSchedule(id: string, enabled: boolean): Promise<Record<string, unknown>> {
+    return this.scheduleResult(await this.sendCommand(`SCHEDULE_ENABLE:${id}:${enabled ? 1 : 0}`));
+  }
+
   /**
    * Cancel activity on a device: stop a ramp (leaving the level where it is), release a
    * pulse in progress to off, and clear any pending delayed action. Does not otherwise

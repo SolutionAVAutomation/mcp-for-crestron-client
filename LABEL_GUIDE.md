@@ -16,7 +16,11 @@ integrator's word, so a plain instruction in a label is followed.
   Channels left at `undefined` are not exposed.
 
 Reuse the same Location across the digital, analog and serial modules for a room, so all
-of its points show up together.
+of its points show up together. A room can also have more than one module of the same
+signal type, such as one analog module for shades and another for lights, as long as each
+has its own Category. A Category other than the default `Controls` becomes part of the
+device ids (`Lounge_Shades_a1`, `Lounge_Lights_a1`), so they don't clash. This needs
+modules 1.11.0 or later.
 
 ## What to put in a label
 
