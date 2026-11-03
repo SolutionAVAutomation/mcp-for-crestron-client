@@ -461,6 +461,23 @@ export class CrestronConnection {
     return { error: "Invalid response" };
   }
 
+  /** What the processor is and what it runs: model, firmware, network, program, uptime, clock,
+   *  location. An older processor without PROCESSOR_INFO gets a plain "update the modules". */
+  async getProcessorInfo(): Promise<Record<string, unknown>> {
+    const response = await this.sendCommand("PROCESSOR_INFO");
+    if (response.startsWith("DATA:")) return JSON.parse(response.slice(5)) as Record<string, unknown>;
+    if (response.startsWith("ERROR:1000")) {
+      return {
+        error:
+          "This processor's MCP for Crestron modules are too old for processor info (it needs " +
+          "modules 1.12.0 or later). Update the modules (load the latest MCPForCrestron.clz, " +
+          "recompile and upload the program), then try again.",
+      };
+    }
+    if (response.startsWith("ERROR")) return { error: this.formatError(response) };
+    return { error: "Invalid response" };
+  }
+
   /**
    * Activate (license) this processor with a key the user obtained for it. The processor
    * verifies the key against its own MAC and, on success, stores it - so the box stays

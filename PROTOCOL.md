@@ -203,7 +203,7 @@ DATA:{"processor_id":"PROC-CP4-01","version":"1.0","rooms":[...],"categories":[.
 {
   "processor_id": "PROC-CP4-01",
   "version": "1.0",
-  "capabilities": ["query", "control", "pulse", "ramp", "delay", "cancel", "batch", "state", "time"],
+  "capabilities": ["query", "control", "pulse", "ramp", "delay", "cancel", "batch", "state", "time", "schedule", "info"],
   "rooms": [
     {
       "id": "conf_rm_a",
@@ -536,7 +536,11 @@ DATA:{"epoch_ms":1718671406000,"iso":"2026-06-18T12:43:26+10:00"}
 **Purpose:** Store actions that the processor runs on its own clock, whether or not a client is
 connected. Requires modules 1.11.0 or later (an older processor answers `ERROR:1000`).
 
-Schedules fire whatever the licence state; the licence gate applies only to these commands.
+Schedules fire whatever the licence state. On an unlicensed processor (for example after a trial
+ends), `SCHEDULE_LIST`, `SCHEDULE_REMOVE` and pausing with `SCHEDULE_ENABLE:<id>:0` still work, so
+the owner can always see and stop what is running; adding a schedule or re-enabling one needs a
+licence. With modules before 1.12.0 every schedule command needs a licence. Authentication still
+applies to all of them.
 
 **Add or replace:** `SCHEDULE_ADD:<json>`. Everything after the first colon is the schedule as
 JSON. Supplying the `id` of an existing schedule replaces it; omit `id` to create one (`s1`, `s2`...).
@@ -575,6 +579,20 @@ case sunrise and sunset are wrong until the integrator sets the real one.
 start-up, arms each at its next future time. A run that fell due while the processor was down
 or being reprogrammed is skipped, never fired late. A one-off whose time passed while it was
 down is kept but disabled, with `last_result` saying it was missed.
+
+### 12. PROCESSOR_INFO
+**Purpose:** Describe the processor and what it is running. Requires modules 1.12.0 or later (an
+older processor answers `ERROR:1000`).
+
+**Request:** `PROCESSOR_INFO`
+
+```
+DATA:{"modules_version":"1.12.0","model":"DIN-AP4","firmware":"2.8006.00110","hostname":"DIN-AP4-00107FF0AB17","ip_address":"10.0.1.38","mac":"00107ff0ab17","program":{"slot":1,"name":"Boardroom","id_tag":"...","comments":"..."},"uptime":"...","now":"2026-11-03 10:15:02","time_zone":"...","location":{"latitude":-27.4667,"longitude":153.0167},"mcp":{"devices":23,"rooms":1,"schedules":2}}
+```
+
+Each field is read separately and left out when the firmware does not supply it. `comments` and
+`uptime` are the processor's own console text for `progcomments` and `uptime`. `location_warning`
+appears when the location is still Crestron's default (see section 11).
 
 ---
 

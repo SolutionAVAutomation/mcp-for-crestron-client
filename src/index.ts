@@ -48,7 +48,7 @@ Schedules: the processor can run actions on a schedule (once, daily, on chosen w
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.`;
 
 const server = new McpServer(
-  { name: "crestron-control", version: "1.15.0" },
+  { name: "crestron-control", version: "1.16.0" },
   { instructions: OPERATING_BRIEF },
 );
 
@@ -207,6 +207,25 @@ server.registerTool(
   async () => {
     try {
       return ok(await crestron.getTime());
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.registerTool(
+  "get_crestron_processor_info",
+  {
+    description:
+      "Describe the processor itself: model, firmware, hostname, IP address, MAC, the running " +
+      "program (slot, name, program comments), uptime, the processor's clock, time zone and " +
+      "location, the MCP for Crestron modules version, and how many devices, rooms and schedules " +
+      "it holds. Use it for questions about the system rather than a device, and to explain " +
+      "sunrise/sunset times (a location_warning means the location was never set).",
+  },
+  async () => {
+    try {
+      return ok(await crestron.getProcessorInfo());
     } catch (e) {
       return fail(e);
     }

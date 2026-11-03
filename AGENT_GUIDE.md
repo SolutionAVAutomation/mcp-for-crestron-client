@@ -81,6 +81,8 @@ missing or wrong in the config, tell the user; you can't fix it from a tool call
 - `query_crestron_device(device_id)` - live state of one device: value plus whether
   it's idle / ramping / pulsing, and any pending scheduled action (see Reading state).
 - `get_crestron_time()` - the processor's current time (epoch ms + ISO 8601).
+- `get_crestron_processor_info()` - the processor itself: model, firmware, IP address,
+  running program and its comments, uptime, time zone, location, modules version.
 - `control_crestron_device(device_id, value, delay_ms?)` - set a device's value,
   optionally after a delay.
 - `set_crestron_devices([{device_id, value, duration_ms?, delay_ms?}, ...])` - apply a
@@ -322,7 +324,11 @@ a schedule, call `schedule_crestron_event` again with its `id`. A run that fell 
 the processor was off is skipped, not run late; a missed one-off shows as disabled with a
 `last_result` explaining it. If `list_crestron_schedules` reports a `location_warning`, the
 processor's location hasn't been set and sun times will be wrong; tell the user the
-integrator needs to set it. An older processor answers that its modules need updating.
+integrator needs to set it (console: `LOCATION -LAT:<lat> -LON:<lon> -LOC:<city>`). An older
+processor answers that its modules need updating.
+
+When the processor is unlicensed (a trial has ended), its schedules keep running. You can
+still list them, pause them and remove them, but adding or re-enabling one needs a licence.
 
 ## Time
 

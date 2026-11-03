@@ -52,7 +52,8 @@ args (`<host> [port]`).
 ## Tools
 
 `discover_crestron_system`, `list_crestron_rooms`, `list_crestron_devices`,
-`query_crestron_device`, `get_crestron_time`, `control_crestron_device`,
+`query_crestron_device`, `get_crestron_time`, `get_crestron_processor_info`,
+`control_crestron_device`,
 `set_crestron_devices`, `pulse_crestron_device`, `ramp_crestron_device`,
 `cancel_crestron_device`, `get_room_status`, `set_crestron_room`, `schedule_crestron_event`,
 `list_crestron_schedules`, `remove_crestron_schedule`, `enable_crestron_schedule`,
