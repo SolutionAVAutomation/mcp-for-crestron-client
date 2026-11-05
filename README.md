@@ -57,7 +57,8 @@ args (`<host> [port]`).
 `set_crestron_devices`, `pulse_crestron_device`, `ramp_crestron_device`,
 `cancel_crestron_device`, `get_room_status`, `set_crestron_room`, `schedule_crestron_event`,
 `list_crestron_schedules`, `remove_crestron_schedule`, `enable_crestron_schedule`,
-`activate_crestron_license`,
+`save_crestron_preset`, `list_crestron_presets`, `recall_crestron_preset`,
+`remove_crestron_preset`, `activate_crestron_license`,
 `get_crestron_license_status`, `start_crestron_trial`.
 
 See [`AGENT_GUIDE.md`](AGENT_GUIDE.md) for how an assistant should use them (timing,

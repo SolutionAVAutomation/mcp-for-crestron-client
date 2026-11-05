@@ -45,10 +45,12 @@ Configuration authority: device names, labels and categories are set by the inte
 
 Schedules: the processor can run actions on a schedule (once, daily, on chosen weekdays, or at sunrise or sunset with an offset), and they run on the processor whether or not any chat is open. Build a schedule from the room's devices as you would a scene. After creating one, tell the user in plain words what it will do and when it next runs, from its next_run. To change a schedule, add it again with the same id.
 
+Presets: a room may have presets the integrator built into the program, usually buttons named for a scene (such as "TV Time"); when one fits the request, press it rather than rebuilding it from individual devices. Owners can also save their own presets on the processor (for example "make a Reading preset with the lamp at 60% and the downlights at 75%"): build it from the room's devices as you would a scene, save it, and recall it by name when asked. When asked what presets a room has, give the integrator's preset buttons and the owner's saved presets as two groups; a saved preset reports whether it is active now. A scene you set up without saving is not kept after this chat, so never promise to remember it; offer to save it as a preset instead. A schedule can recall a saved preset.
+
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.`;
 
 const server = new McpServer(
-  { name: "crestron-control", version: "1.16.0" },
+  { name: "crestron-control", version: "1.17.0" },
   { instructions: OPERATING_BRIEF },
 );
 
@@ -415,7 +417,16 @@ server.registerTool(
       const room = room_name?.trim() || currentRoom;
       if (!room) return ok({ success: false, error: "No room given and no current room set." });
       const devices = (await crestron.listDevices(room)) as unknown[];
-      return ok({ room, device_count: devices.length, devices });
+      // Saved presets for the room, when the modules support them (1.13.0+); older modules or an
+      // unlicensed processor just leave them out.
+      let presets: unknown[] | undefined;
+      try {
+        const p = await crestron.listPresets(room);
+        if (p.success && Array.isArray(p.presets)) presets = p.presets as unknown[];
+      } catch {
+        /* not available */
+      }
+      return ok(presets ? { room, device_count: devices.length, devices, saved_presets: presets } : { room, device_count: devices.length, devices });
     } catch (e) {
       return fail(e);
     }
@@ -431,7 +442,8 @@ server.registerTool(
       "with an offset in minutes (negative = before, e.g. -20 is 20 minutes before sunset). " +
       "Times are the processor's local 24-hour time; call get_crestron_time if you need today's " +
       "date for a one-off. Actions work like a scene: set a value, fade with duration_ms " +
-      "(analog), or press a digital button with pulse_ms. Turn \"all the shades\" into one " +
+      "(analog), press a digital button with pulse_ms, or recall a saved preset with preset. " +
+      "Turn \"all the shades\" into one " +
       "action per shade from the room's devices. The result includes next_run; tell the user " +
       "what will happen and when. Pass an existing id to change that schedule.",
     inputSchema: {
@@ -451,9 +463,10 @@ server.registerTool(
       actions: z
         .array(
           z.object({
-            device_id: z.string(),
+            device_id: z.string().optional().describe("The device to act on (omit when recalling a preset)."),
+            preset: z.string().optional().describe("Recall this saved preset (id or name) instead of acting on one device."),
             value: z.string().optional().describe('Analog "0"-"65535" or serial text.'),
-            duration_ms: z.number().int().optional().describe("Fade time (analog)."),
+            duration_ms: z.number().int().optional().describe("Fade time (analog), or the fade for a recalled preset."),
             pulse_ms: z.number().int().optional().describe("Press a digital button for this long (e.g. 300)."),
           }),
         )
@@ -519,6 +532,107 @@ server.registerTool(
   async ({ id, enabled }) => {
     try {
       return ok(await crestron.enableSchedule(id, enabled));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+const presetEntry = z.object({
+  device_id: z.string(),
+  value: z.string().optional().describe('Analog "0"-"65535" or serial text.'),
+  duration_ms: z.number().int().optional().describe("Fade time for this device when the preset is recalled (analog)."),
+  pulse_ms: z.number().int().optional().describe("Press a digital button for this long (e.g. 300) when recalled."),
+});
+
+server.registerTool(
+  "save_crestron_preset",
+  {
+    description:
+      "Save (or replace) an owner preset on the processor: a named set of device levels the user " +
+      "can recall later from any chat, e.g. \"Reading\" with the lamp at 60% and the downlights " +
+      "at 75%. Build the entries from the room's devices as you would a scene (analog levels " +
+      "0-65535, serial text, or a digital press with pulse_ms). Saving under an existing name or " +
+      "id replaces that preset. The preset is filed under the rooms its devices are in; pass rooms " +
+      "to file one that spans rooms under a particular room. Use this only when the user asks to " +
+      "save or create a preset; to just set the room, use set_crestron_devices.",
+    inputSchema: {
+      name: z.string().describe('The preset name in the user\'s words, e.g. "Reading" (no ":").'),
+      entries: z.array(presetEntry).describe("The devices and the level each is set to."),
+      rooms: z.array(z.string()).optional().describe("Rooms to file it under; omit to use the devices' rooms."),
+      id: z.string().optional().describe("Existing preset id to replace; omit to create, or replace by name."),
+    },
+  },
+  async ({ name, entries, rooms, id }) => {
+    try {
+      const preset: Record<string, unknown> = { name, entries };
+      if (rooms?.length) preset.rooms = rooms;
+      if (id) preset.id = id;
+      return ok(await crestron.savePreset(preset));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.registerTool(
+  "list_crestron_presets",
+  {
+    description:
+      "List the owner presets saved on the processor, for one room or all, each with its devices " +
+      "and levels and whether it is active now (active is null when it can't be told, for example " +
+      "a preset of button presses). These are the owner's presets; presets the integrator built " +
+      "into the program appear as devices (buttons) in the room instead. With no room given, a " +
+      'current room filters the list; pass room "all" for every room.',
+    inputSchema: {
+      room: z.string().optional().describe('Room name to filter by; "all" for every room.'),
+    },
+  },
+  async ({ room }) => {
+    try {
+      const r = room?.trim();
+      const all = r !== undefined && r.toLowerCase() === "all";
+      const which = all ? undefined : r || currentRoom || undefined;
+      return ok(await crestron.listPresets(which));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.registerTool(
+  "recall_crestron_preset",
+  {
+    description:
+      "Recall an owner preset saved on the processor, by name or id: sets every device in it in " +
+      "one go. fade_ms fades the analog levels that don't have a fade of their own. For a preset " +
+      "the integrator built into the program (a button), press the button with " +
+      "pulse_crestron_device instead.",
+    inputSchema: {
+      preset: z.string().describe("Preset name or id, from list_crestron_presets."),
+      fade_ms: z.number().int().optional().describe("Optional fade time for analog levels."),
+    },
+  },
+  async ({ preset, fade_ms }) => {
+    try {
+      return ok(await crestron.recallPreset(preset.trim(), fade_ms));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.registerTool(
+  "remove_crestron_preset",
+  {
+    description:
+      "Delete an owner preset from the processor by name or id. A schedule that recalls it will " +
+      "report the preset missing when it next runs, so remove or change that schedule too.",
+    inputSchema: { preset: z.string().describe("Preset name or id.") },
+  },
+  async ({ preset }) => {
+    try {
+      return ok(await crestron.removePreset(preset.trim()));
     } catch (e) {
       return fail(e);
     }

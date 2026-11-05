@@ -203,7 +203,7 @@ DATA:{"processor_id":"PROC-CP4-01","version":"1.0","rooms":[...],"categories":[.
 {
   "processor_id": "PROC-CP4-01",
   "version": "1.0",
-  "capabilities": ["query", "control", "pulse", "ramp", "delay", "cancel", "batch", "state", "time", "schedule", "info"],
+  "capabilities": ["query", "control", "pulse", "ramp", "delay", "cancel", "batch", "state", "time", "schedule", "info", "preset"],
   "rooms": [
     {
       "id": "conf_rm_a",
@@ -555,7 +555,8 @@ DATA:{"id":"s1","name":"Lounge shades down","when":{...},"actions":[...],"enable
   optional `days`). Times are the processor's local 24-hour time, `HH:MM`.
 - `days`: `mon`..`sun` (full names accepted), plus `weekdays` and `weekends`.
 - `actions` (1 to 20, run in order): `{device_id, value}` sets, adding `duration_ms` fades an
-  analog, and `{device_id, pulse_ms}` presses a digital. They run through the same paths as
+  analog, `{device_id, pulse_ms}` presses a digital, and `{preset}` recalls a saved preset (by
+  id or name, stored as its id; modules 1.13.0+), with an optional `duration_ms` fade. They run through the same paths as
   `SET` / `RAMP` / `PULSE`, so a scheduled action supersedes pending work on that device like
   any other command.
 - At most 50 schedules. Errors come back as `ERROR:1001:<reason>` (bad time, unknown device,
@@ -587,12 +588,61 @@ older processor answers `ERROR:1000`).
 **Request:** `PROCESSOR_INFO`
 
 ```
-DATA:{"modules_version":"1.12.0","model":"DIN-AP4","firmware":"2.8006.00110","hostname":"DIN-AP4-00107FF0AB17","ip_address":"10.0.1.38","mac":"00107ff0ab17","program":{"slot":1,"name":"Boardroom","id_tag":"...","comments":"..."},"uptime":"...","now":"2026-11-03 10:15:02","time_zone":"...","location":{"latitude":-27.4667,"longitude":153.0167},"mcp":{"devices":23,"rooms":1,"schedules":2}}
+DATA:{"modules_version":"1.13.0","model":"DIN-AP4","firmware":"2.8006.00110","hostname":"DIN-AP4-00107FF0AB17","ip_address":"10.0.1.38","mac":"00107ff0ab17","program":{"slot":1,"name":"Boardroom","id_tag":"...","comments":"..."},"uptime":"...","now":"2026-11-03 10:15:02","time_zone":"...","location":{"latitude":-27.4667,"longitude":153.0167},"mcp":{"devices":23,"rooms":1,"schedules":2,"presets":3}}
 ```
 
 Each field is read separately and left out when the firmware does not supply it. `comments` and
 `uptime` are the processor's own console text for `progcomments` and `uptime`. `location_warning`
 appears when the location is still Crestron's default (see section 11).
+
+### 13. Presets (PRESET_SAVE / PRESET_LIST / PRESET_RECALL / PRESET_REMOVE)
+**Purpose:** Owner presets, named sets of device levels stored on the processor so any client can
+list and recall them after a reboot. Requires modules 1.13.0 or later (an older processor answers
+`ERROR:1000`). Presets built into the SIMPL program are ordinary devices (buttons) and are not
+part of this.
+
+**Save or replace:** `PRESET_SAVE:<json>`. Everything after the first colon is the preset as JSON.
+Saving under the `id` or the name (case-insensitive) of an existing preset replaces it; otherwise
+a new one is created (`p1`, `p2`...).
+
+```
+PRESET_SAVE:{"name":"Reading","entries":[{"device_id":"Family_a1","value":"39321"},{"device_id":"Family_a2","value":"49151","duration_ms":2000}]}
+DATA:{"id":"p1","name":"Reading","rooms":["Family"],"entries":[...],"created":"2026-11-05 10:02","active":false,"replaced":false}
+```
+
+- `name`: up to 60 characters, no `:`.
+- `entries` (1 to 30, one per device): `{device_id, value}` sets, adding `duration_ms` fades an
+  analog on recall, and `{device_id, pulse_ms}` presses a digital. Devices must exist and not be
+  read-only.
+- `rooms` (optional): where the preset is filed. By default, the rooms of its devices.
+- At most 100 presets. Errors come back as `ERROR:1001:<reason>`.
+
+**List:** `PRESET_LIST` or `PRESET_LIST:<room>` (case-insensitive room name)
+
+```
+DATA:{"storage":"data store","count":1,"max":100,"presets":[{"id":"p1","name":"Reading",...,"active":true}],"room":"Family"}
+```
+
+`active` is true when every analog and serial entry matches current feedback (analog within 2% of
+full scale), false when one doesn't, and null when nothing can be checked (only digital presses,
+or write-only devices).
+
+**Recall:** `PRESET_RECALL:<id or name>[:fade_ms]`. Runs each entry through `SET` / `RAMP` /
+`PULSE`. `fade_ms` fades analog entries that have no `duration_ms` of their own.
+
+```
+DATA:{"id":"p1","name":"Reading","applied":2,"failed":0,"results":[{"device_id":"Family_a1","ok":true},...]}
+```
+
+**Remove:** `PRESET_REMOVE:<id or name>` -> `OK:PRESET_REMOVE:<id>`. A schedule that recalls a
+removed preset records the error in its `last_result` when it next runs.
+
+**Licence and owner edits:** on an unlicensed processor `PRESET_LIST` and `PRESET_REMOVE` still
+work; saving and recalling need a licence. The integrator can turn off owner changes with the
+`Owner_Edits` parameter on the server config module: then `PRESET_SAVE`, `PRESET_REMOVE`,
+`SCHEDULE_ADD`, `SCHEDULE_REMOVE` and `SCHEDULE_ENABLE` answer
+`ERROR:1003:the integrator has turned off schedule and preset changes on this processor`, while
+listing and recalling still work and existing schedules keep running.
 
 ---
 

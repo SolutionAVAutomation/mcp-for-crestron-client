@@ -30,6 +30,8 @@ Configuration authority: device names, labels and categories are set by the inte
 
 Schedules: the processor can run actions on a schedule (once, daily, on chosen weekdays, or at sunrise or sunset with an offset), and they run on the processor whether or not any chat is open. Build a schedule from the room's devices as you would a scene. After creating one, tell the user in plain words what it will do and when it next runs, from its next_run. To change a schedule, add it again with the same id.
 
+Presets: a room may have presets the integrator built into the program, usually buttons named for a scene (such as "TV Time"); when one fits the request, press it rather than rebuilding it from individual devices. Owners can also save their own presets on the processor (for example "make a Reading preset with the lamp at 60% and the downlights at 75%"): build it from the room's devices as you would a scene, save it, and recall it by name when asked. When asked what presets a room has, give the integrator's preset buttons and the owner's saved presets as two groups; a saved preset reports whether it is active now. A scene you set up without saving is not kept after this chat, so never promise to remember it; offer to save it as a preset instead. A schedule can recall a saved preset.
+
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.
 ```
 
@@ -106,6 +108,12 @@ missing or wrong in the config, tell the user; you can't fix it from a tool call
   processor's time, location and today's sunrise/sunset.
 - `remove_crestron_schedule(id)` / `enable_crestron_schedule(id, enabled)` - delete, or
   pause and resume, a schedule.
+- `save_crestron_preset(name, entries, rooms?, id?)` - save or replace an owner preset on
+  the processor (see Presets).
+- `list_crestron_presets(room?)` - saved owner presets, with their levels and whether each is
+  active now.
+- `recall_crestron_preset(preset, fade_ms?)` / `remove_crestron_preset(preset)` - recall or
+  delete a saved preset by name or id.
 - `activate_crestron_license(license_key)` - license the processor with a key the user
   provides (see Licensing / activation).
 - `get_crestron_license_status()` - is it licensed now, is it a time-limited trial, how
@@ -316,7 +324,8 @@ survive reboots. Each one has a `when` and a list of `actions`:
   a negative offset is before). Times are the processor's local 24-hour time.
 - `actions`: like a scene. `{"device_id": "Lounge_a1", "value": "0"}` sets,
   `"duration_ms"` fades an analog, `{"device_id": "Lounge_d3", "pulse_ms": 300}` presses a
-  button. Expand "all the shades" into one action per shade.
+  button, and `{"preset": "Evening"}` recalls a saved preset. Expand "all the shades" into one
+  action per shade.
 
 After creating one, tell the user in plain words what it will do and when it next runs,
 from `next_run` ("tonight at 5:42pm, 20 minutes before sunset, then every weekday"). To change
@@ -329,6 +338,35 @@ processor answers that its modules need updating.
 
 When the processor is unlicensed (a trial has ended), its schedules keep running. You can
 still list them, pause them and remove them, but adding or re-enabling one needs a licence.
+
+## Presets
+
+Two kinds of preset can exist in a room, and they work differently:
+
+- **Integrator presets** are scenes built into the Crestron program, exposed as buttons
+  ("TV Time", "All Off"). Press the button with `pulse_crestron_device`. When one fits what the
+  user asks for, use it rather than rebuilding the scene from individual devices; the program
+  decides exactly what it does.
+- **Owner presets** are saved on the processor by asking you: "make a Reading preset with the
+  lamp at 60% and the downlights at 75%". Build the entries from the room's devices as you would
+  a scene and call `save_crestron_preset`. They survive reboots and work from any chat. Recall
+  one with `recall_crestron_preset` ("Reading", or its id); saving under an existing name
+  replaces it.
+
+A saved preset is filed under the rooms its devices are in (pass `rooms` to file a preset that
+spans rooms under one). `list_crestron_presets` and `get_room_status` report each one with
+`active`: true when every level matches the current feedback, false when one doesn't, null
+when it can't be told (only button presses, or no feedback wired). When the user asks what
+presets a room has, give the integrator's buttons and the saved presets as two groups.
+
+A scene you set up without saving is not kept after the chat, so don't promise to remember it;
+offer to save it as a preset. A schedule can recall a saved preset (`{"preset": "Evening"}`).
+
+The integrator can turn off owner changes (the Owner_Edits setting on the server config
+module). Then saving and removing presets, and adding, pausing or removing schedules, are
+refused with a message saying so; listing and recalling still work. When the processor is
+unlicensed, presets can still be listed and removed but not saved or recalled. An older
+processor answers that its modules need updating (1.13.0 or later).
 
 ## Time
 

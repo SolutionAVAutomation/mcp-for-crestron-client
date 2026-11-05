@@ -757,6 +757,41 @@ export class CrestronConnection {
     return this.scheduleResult(await this.sendCommand(`SCHEDULE_ENABLE:${id}:${enabled ? 1 : 0}`));
   }
 
+  // --- presets (stored on the processor) --------------------------------------
+
+  /** Like scheduleResult, for the PRESET_* commands (modules 1.13.0 and later). */
+  private presetResult(response: string): Record<string, unknown> {
+    if (response.startsWith("ERROR:1000")) {
+      return {
+        success: false,
+        error:
+          "This processor's MCP for Crestron modules are too old for saved presets (1.13.0 or later " +
+          "needed). Update the modules (load the latest MCPForCrestron.clz, recompile and upload the " +
+          "program), then try again.",
+      };
+    }
+    return this.scheduleResult(response);
+  }
+
+  async savePreset(preset: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.presetResult(await this.sendCommand(`PRESET_SAVE:${JSON.stringify(preset)}`));
+  }
+
+  async listPresets(room?: string): Promise<Record<string, unknown>> {
+    return this.presetResult(await this.sendCommand(room ? `PRESET_LIST:${room}` : "PRESET_LIST"));
+  }
+
+  async removePreset(preset: string): Promise<Record<string, unknown>> {
+    const r = this.presetResult(await this.sendCommand(`PRESET_REMOVE:${preset}`));
+    return r.success ? { success: true, removed: preset } : r;
+  }
+
+  async recallPreset(preset: string, fadeMs?: number): Promise<Record<string, unknown>> {
+    if (preset.includes(":")) return { success: false, error: "Preset names can't contain ':'." };
+    const fade = fadeMs && fadeMs > 0 ? `:${Math.round(fadeMs)}` : "";
+    return this.presetResult(await this.sendCommand(`PRESET_RECALL:${preset}${fade}`));
+  }
+
   /**
    * Cancel activity on a device: stop a ramp (leaving the level where it is), release a
    * pulse in progress to off, and clear any pending delayed action. Does not otherwise
