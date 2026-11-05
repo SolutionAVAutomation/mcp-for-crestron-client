@@ -50,7 +50,7 @@ Presets: a room may have presets the integrator built into the program, usually 
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.`;
 
 const server = new McpServer(
-  { name: "crestron-control", version: "1.17.0" },
+  { name: "crestron-control", version: "1.17.1" },
   { instructions: OPERATING_BRIEF },
 );
 
@@ -626,8 +626,9 @@ server.registerTool(
   "remove_crestron_preset",
   {
     description:
-      "Delete an owner preset from the processor by name or id. A schedule that recalls it will " +
-      "report the preset missing when it next runs, so remove or change that schedule too.",
+      "Delete an owner preset from the processor by name or id. If schedules recall it, the result " +
+      "lists them (used_by); tell the user and offer to change or remove those schedules, since " +
+      "they will report the preset missing when they next run.",
     inputSchema: { preset: z.string().describe("Preset name or id.") },
   },
   async ({ preset }) => {

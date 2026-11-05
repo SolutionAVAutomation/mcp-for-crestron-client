@@ -782,8 +782,9 @@ export class CrestronConnection {
   }
 
   async removePreset(preset: string): Promise<Record<string, unknown>> {
+    // Modules 1.14.0+ answer with DATA, listing any schedules that recall the preset (used_by).
     const r = this.presetResult(await this.sendCommand(`PRESET_REMOVE:${preset}`));
-    return r.success ? { success: true, removed: preset } : r;
+    return r.success ? { removed: preset, ...r } : r;
   }
 
   async recallPreset(preset: string, fadeMs?: number): Promise<Record<string, unknown>> {

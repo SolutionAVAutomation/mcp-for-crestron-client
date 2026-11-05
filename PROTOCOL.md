@@ -634,8 +634,16 @@ or write-only devices).
 DATA:{"id":"p1","name":"Reading","applied":2,"failed":0,"results":[{"device_id":"Family_a1","ok":true},...]}
 ```
 
-**Remove:** `PRESET_REMOVE:<id or name>` -> `OK:PRESET_REMOVE:<id>`. A schedule that recalls a
-removed preset records the error in its `last_result` when it next runs.
+**Remove:** `PRESET_REMOVE:<id or name>`. From modules 1.14.0 the reply lists any schedules that
+recall the preset, so a client can offer to change them:
+
+```
+DATA:{"id":"p1","name":"Reading","removed":true,"used_by":[{"id":"s2","name":"Reading at 9pm"}],"note":"..."}
+```
+
+`used_by` and `note` appear only when a schedule uses it. Modules 1.13.0 answer
+`OK:PRESET_REMOVE:<id>`. A schedule that recalls a removed preset records the error in its
+`last_result` when it next runs.
 
 **Licence and owner edits:** on an unlicensed processor `PRESET_LIST` and `PRESET_REMOVE` still
 work; saving and recalling need a licence. The integrator can turn off owner changes with the
