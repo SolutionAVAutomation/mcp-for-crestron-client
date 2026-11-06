@@ -645,6 +645,13 @@ DATA:{"id":"p1","name":"Reading","removed":true,"used_by":[{"id":"s2","name":"Re
 `OK:PRESET_REMOVE:<id>`. A schedule that recalls a removed preset records the error in its
 `last_result` when it next runs.
 
+**Preset buttons (modules 1.15.0+):** the Preset Buttons module puts named presets on keypad or
+panel buttons; a button finds its preset by name. `PRESET_LIST` marks those presets
+`"on_button":true` and lists button names with no preset yet as `"unassigned_buttons":[...]`.
+`PRESET_REMOVE` of such a preset adds `"on_button":true` and a `button_note`, and saving a preset
+under a new name when the old one was on a button adds a `note`. Clients should check with the user
+before deleting or renaming a preset that is on a button.
+
 **Licence and owner edits:** on an unlicensed processor `PRESET_LIST` and `PRESET_REMOVE` still
 work; saving and recalling need a licence. The integrator can turn off owner changes with the
 `Owner_Edits` parameter on the server config module: then `PRESET_SAVE`, `PRESET_REMOVE`,

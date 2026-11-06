@@ -45,12 +45,12 @@ Configuration authority: device names, labels and categories are set by the inte
 
 Schedules: the processor can run actions on a schedule (once, daily, on chosen weekdays, or at sunrise or sunset with an offset), and they run on the processor whether or not any chat is open. Build a schedule from the room's devices as you would a scene. After creating one, tell the user in plain words what it will do and when it next runs, from its next_run. To change a schedule, add it again with the same id.
 
-Presets: a room may have presets the integrator built into the program, usually buttons named for a scene (such as "TV Time"); when one fits the request, press it rather than rebuilding it from individual devices. Owners can also save their own presets on the processor (for example "make a Reading preset with the lamp at 60% and the downlights at 75%"): build it from the room's devices as you would a scene, save it, and recall it by name when asked. When asked what presets a room has, give the integrator's preset buttons and the owner's saved presets as two groups; a saved preset reports whether it is active now. A scene you set up without saving is not kept after this chat, so never promise to remember it; offer to save it as a preset instead. A schedule can recall a saved preset.
+Presets: a room may have presets the integrator built into the program, usually buttons named for a scene (such as "TV Time"); when one fits the request, press it rather than rebuilding it from individual devices. Owners can also save their own presets on the processor (for example "make a Reading preset with the lamp at 60% and the downlights at 75%"): build it from the room's devices as you would a scene, save it, and recall it by name when asked. Whenever you save or re-save a preset, give each device the fade time from its name or description, as you would when setting it. When asked what presets a room has, give the integrator's preset buttons and the owner's saved presets as two groups; a saved preset reports whether it is active now. A scene you set up without saving is not kept after this chat, so never promise to remember it; offer to save it as a preset instead. A schedule can recall a saved preset. Some presets are on buttons the integrator programmed: the preset list marks them on_button, and a button finds its preset by name, so before deleting or renaming one of those, check with the user, because the button stops working. A button whose preset does not exist yet is listed under unassigned_buttons; offer to create it, and use exactly that name.
 
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.`;
 
 const server = new McpServer(
-  { name: "crestron-control", version: "1.17.1" },
+  { name: "crestron-control", version: "1.18.0" },
   { instructions: OPERATING_BRIEF },
 );
 
@@ -552,7 +552,8 @@ server.registerTool(
       "Save (or replace) an owner preset on the processor: a named set of device levels the user " +
       "can recall later from any chat, e.g. \"Reading\" with the lamp at 60% and the downlights " +
       "at 75%. Build the entries from the room's devices as you would a scene (analog levels " +
-      "0-65535, serial text, or a digital press with pulse_ms). Saving under an existing name or " +
+      "0-65535, serial text, or a digital press with pulse_ms), giving each device the fade time its " +
+      "name or description asks for (duration_ms), also when re-saving. Saving under an existing name or " +
       "id replaces that preset. The preset is filed under the rooms its devices are in; pass rooms " +
       "to file one that spans rooms under a particular room. Use this only when the user asks to " +
       "save or create a preset; to just set the room, use set_crestron_devices.",
@@ -581,7 +582,8 @@ server.registerTool(
     description:
       "List the owner presets saved on the processor, for one room or all, each with its devices " +
       "and levels and whether it is active now (active is null when it can't be told, for example " +
-      "a preset of button presses). These are the owner's presets; presets the integrator built " +
+      "a preset of button presses), and on_button for presets a programmed button recalls by name; " +
+      "unassigned_buttons lists button names with no preset yet. These are the owner's presets; presets the integrator built " +
       "into the program appear as devices (buttons) in the room instead. With no room given, a " +
       'current room filters the list; pass room "all" for every room.',
     inputSchema: {
@@ -626,7 +628,8 @@ server.registerTool(
   "remove_crestron_preset",
   {
     description:
-      "Delete an owner preset from the processor by name or id. If schedules recall it, the result " +
+      "Delete an owner preset from the processor by name or id. If it is on_button, check with the " +
+      "user first, since the button stops working. If schedules recall it, the result " +
       "lists them (used_by); tell the user and offer to change or remove those schedules, since " +
       "they will report the preset missing when they next run.",
     inputSchema: { preset: z.string().describe("Preset name or id.") },
