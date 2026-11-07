@@ -45,12 +45,12 @@ Configuration authority: device names, labels and categories are set by the inte
 
 Schedules: the processor can run actions on a schedule (once, daily, on chosen weekdays, or at sunrise or sunset with an offset), and they run on the processor whether or not any chat is open. Build a schedule from the room's devices as you would a scene. After creating one, tell the user in plain words what it will do and when it next runs, from its next_run. To change a schedule, add it again with the same id.
 
-Presets: a room may have presets the integrator built into the program, usually buttons named for a scene (such as "TV Time"); when one fits the request, press it rather than rebuilding it from individual devices. Owners can also save their own presets on the processor (for example "make a Reading preset with the lamp at 60% and the downlights at 75%"): build it from the room's devices as you would a scene, save it, and recall it by name when asked. Whenever you save or re-save a preset, give each device the fade time from its name or description, as you would when setting it. When asked what presets a room has, give the integrator's preset buttons and the owner's saved presets as two groups; a saved preset reports whether it is active now. A scene you set up without saving is not kept after this chat, so never promise to remember it; offer to save it as a preset instead. A schedule can recall a saved preset. Some presets are on buttons the integrator programmed: the preset list marks them on_button, and a button finds its preset by name, so before deleting or renaming one of those, check with the user, because the button stops working. A button whose preset does not exist yet is listed under unassigned_buttons; offer to create it, and use exactly that name.
+Presets: a room may have presets the integrator built into the program, usually buttons named for a scene (such as "TV Time"); when one fits the request, press it rather than rebuilding it from individual devices. Owners can also save their own presets on the processor (for example "make a Reading preset with the lamp at 60% and the downlights at 75%"): build it from the room's devices as you would a scene, save it, and recall it by name when asked. Each saved preset belongs to one room, so every room can have its own "Evening": the room its devices are in unless the user names another, or the whole house when they ask for that or it spans rooms. A preset name has three scopes: one room's preset, the whole-house preset (room "house"), or every room (room "all", every room's preset of that name plus the whole-house one). Take the scope from the user's words: "turn the house off for the night" or "everything off" means every room, and "lounge evening", or a name while a current room is set, means that room. Nothing falls back to another scope; when the scope is unclear, or the room doesn't have that preset but somewhere else does, the processor says where it exists, and you ask a short question ("just the lounge, or the whole house?") before acting. If a save or recall reports clashes, tell the user which devices the same-named presets set differently and offer to make them agree. Whenever you save or re-save a preset, give each device the fade time from its name or description, as you would when setting it. When asked what presets a room has, give the integrator's preset buttons and the owner's saved presets as two groups; a saved preset reports whether it is active now. A scene you set up without saving is not kept after this chat, so never promise to remember it; offer to save it as a preset instead. A schedule can recall a saved preset. Some presets are on buttons the integrator programmed: the preset list marks them on_button, and a button finds its preset by name, so before deleting or renaming one of those, check with the user, because the button stops working. A button whose preset does not exist yet is listed under unassigned_buttons with its room; offer to create it in that room, using exactly that name.
 
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.`;
 
 const server = new McpServer(
-  { name: "crestron-control", version: "1.18.0" },
+  { name: "crestron-control", version: "1.19.0" },
   { instructions: OPERATING_BRIEF },
 );
 
@@ -465,6 +465,10 @@ server.registerTool(
           z.object({
             device_id: z.string().optional().describe("The device to act on (omit when recalling a preset)."),
             preset: z.string().optional().describe("Recall this saved preset (id or name) instead of acting on one device."),
+            preset_room: z
+              .string()
+              .optional()
+              .describe('Which room\'s preset, when preset is a name; omit for the current room; "house" for the whole-house preset; "all" runs it in every room, including rooms that get one later.'),
             value: z.string().optional().describe('Analog "0"-"65535" or serial text.'),
             duration_ms: z.number().int().optional().describe("Fade time (analog), or the fade for a recalled preset."),
             pulse_ms: z.number().int().optional().describe("Press a digital button for this long (e.g. 300)."),
@@ -476,7 +480,14 @@ server.registerTool(
   },
   async ({ name, when, actions, id }) => {
     try {
-      const schedule: Record<string, unknown> = { name, when, actions };
+      // A preset named without a room means the current room's (or the house-wide one).
+      const acts = actions.map((a) => {
+        if (!a.preset) return a;
+        if (a.preset_room && /^(all|all rooms|every room|everywhere|\*)$/i.test(a.preset_room.trim())) return { ...a, preset_room: "*" };
+        if (a.preset_room && /^(house|whole house|house-wide|house wide|global)$/i.test(a.preset_room.trim())) return { ...a, preset_room: "" };
+        return !a.preset_room && currentRoom ? { ...a, preset_room: currentRoom } : a;
+      });
+      const schedule: Record<string, unknown> = { name, when, actions: acts };
       if (id) schedule.id = id;
       return ok(await crestron.addSchedule(schedule));
     } catch (e) {
@@ -538,6 +549,15 @@ server.registerTool(
   },
 );
 
+/** A room argument for the preset tools: "" for house-wide, "*" for every room (when
+ *  allowed), else the room, else (when useCurrent) the current room. */
+function presetRoom(room?: string, useCurrent = true, everyRoom = false): string | undefined {
+  const r = room?.trim();
+  if (r && /^(house|whole house|house-wide|house wide|global)$/i.test(r)) return "";
+  if (r && /^(all|all rooms|every room|everywhere|\*)$/i.test(r)) return everyRoom ? "*" : undefined;
+  return r || (useCurrent ? currentRoom : "") || undefined;
+}
+
 const presetEntry = z.object({
   device_id: z.string(),
   value: z.string().optional().describe('Analog "0"-"65535" or serial text.'),
@@ -554,22 +574,25 @@ server.registerTool(
       "at 75%. Build the entries from the room's devices as you would a scene (analog levels " +
       "0-65535, serial text, or a digital press with pulse_ms), giving each device the fade time its " +
       "name or description asks for (duration_ms), also when re-saving. Saving under an existing name or " +
-      "id replaces that preset. The preset is filed under the rooms its devices are in; pass rooms " +
-      "to file one that spans rooms under a particular room. Use this only when the user asks to " +
-      "save or create a preset; to just set the room, use set_crestron_devices.",
+      "id in the same room replaces that preset. A preset belongs to one room, so each room can " +
+      "have its own preset of the same name: by default the room its devices are in, or house-wide " +
+      'when they span rooms; pass room to choose, or "house" for a whole-house preset. Use this only when the user ' +
+      "asks to save or create a preset; to just set the room, use set_crestron_devices.",
     inputSchema: {
       name: z.string().describe('The preset name in the user\'s words, e.g. "Reading" (no ":").'),
       entries: z.array(presetEntry).describe("The devices and the level each is set to."),
-      rooms: z.array(z.string()).optional().describe("Rooms to file it under; omit to use the devices' rooms."),
+      room: z
+        .string()
+        .optional()
+        .describe('The room it belongs to; omit for its devices\' room; "house" for whole-house.'),
       id: z.string().optional().describe("Existing preset id to replace; omit to create, or replace by name."),
     },
   },
-  async ({ name, entries, rooms, id }) => {
+  async ({ name, entries, room, id }) => {
     try {
       const preset: Record<string, unknown> = { name, entries };
-      if (rooms?.length) preset.rooms = rooms;
       if (id) preset.id = id;
-      return ok(await crestron.savePreset(preset));
+      return ok(await crestron.savePreset(preset, presetRoom(room, false)));
     } catch (e) {
       return fail(e);
     }
@@ -582,10 +605,11 @@ server.registerTool(
     description:
       "List the owner presets saved on the processor, for one room or all, each with its devices " +
       "and levels and whether it is active now (active is null when it can't be told, for example " +
-      "a preset of button presses), and on_button for presets a programmed button recalls by name; " +
-      "unassigned_buttons lists button names with no preset yet. These are the owner's presets; presets the integrator built " +
-      "into the program appear as devices (buttons) in the room instead. With no room given, a " +
-      'current room filters the list; pass room "all" for every room.',
+      "a preset of button presses), its room (or house_wide), and on_button for presets a programmed " +
+      "button recalls by name; unassigned_buttons lists buttons (name and room) with no preset yet. " +
+      "A room's list includes the house-wide presets. These are the owner's presets; presets the " +
+      "integrator built into the program appear as devices (buttons) in the room instead. With no " +
+      'room given, a current room filters the list; pass room "all" for every room.',
     inputSchema: {
       room: z.string().optional().describe('Room name to filter by; "all" for every room.'),
     },
@@ -607,17 +631,24 @@ server.registerTool(
   {
     description:
       "Recall an owner preset saved on the processor, by name or id: sets every device in it in " +
-      "one go. fade_ms fades the analog levels that don't have a fade of their own. For a preset " +
+      "one go. By name it uses one scope and never falls back: that room's preset (the current room " +
+      'unless you pass room), room "house" for the whole-house preset, or room "all" for every preset ' +
+      "of that name (clashes lists devices they set differently). If it isn't in that scope the error " +
+      "says where it is; ask the user which they mean. fade_ms fades the analog levels that don't have a fade of their own. For a preset " +
       "the integrator built into the program (a button), press the button with " +
       "pulse_crestron_device instead.",
     inputSchema: {
       preset: z.string().describe("Preset name or id, from list_crestron_presets."),
       fade_ms: z.number().int().optional().describe("Optional fade time for analog levels."),
+      room: z
+        .string()
+        .optional()
+        .describe('Which room\'s preset; omit for the current room, "house" for the whole-house one, "all" to run it in every room.'),
     },
   },
-  async ({ preset, fade_ms }) => {
+  async ({ preset, fade_ms, room }) => {
     try {
-      return ok(await crestron.recallPreset(preset.trim(), fade_ms));
+      return ok(await crestron.recallPreset(preset.trim(), fade_ms, presetRoom(room, true, true)));
     } catch (e) {
       return fail(e);
     }
@@ -632,11 +663,14 @@ server.registerTool(
       "user first, since the button stops working. If schedules recall it, the result " +
       "lists them (used_by); tell the user and offer to change or remove those schedules, since " +
       "they will report the preset missing when they next run.",
-    inputSchema: { preset: z.string().describe("Preset name or id.") },
+    inputSchema: {
+      preset: z.string().describe("Preset name or id."),
+      room: z.string().optional().describe('Which room\'s preset; omit for the current room, "house" for the whole-house one.'),
+    },
   },
-  async ({ preset }) => {
+  async ({ preset, room }) => {
     try {
-      return ok(await crestron.removePreset(preset.trim()));
+      return ok(await crestron.removePreset(preset.trim(), presetRoom(room)));
     } catch (e) {
       return fail(e);
     }

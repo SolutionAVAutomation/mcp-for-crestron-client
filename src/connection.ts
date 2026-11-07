@@ -188,6 +188,7 @@ export class CrestronConnection {
 
   processorId?: string;
   private connected = false;
+  private presetRoomsCap?: boolean; // modules 1.16.0+: presets belong to a room
   private socket?: net.Socket;
   private buffer = "";
   private readers: Waiter[] = [];
@@ -379,6 +380,7 @@ export class CrestronConnection {
       }
     }
     this.connected = true;
+    this.presetRoomsCap = undefined;
   }
 
   private async authenticateKey(): Promise<void> {
@@ -773,24 +775,50 @@ export class CrestronConnection {
     return this.scheduleResult(response);
   }
 
-  async savePreset(preset: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return this.presetResult(await this.sendCommand(`PRESET_SAVE:${JSON.stringify(preset)}`));
+  /** Whether the modules file each preset under one room (1.16.0+), from DISCOVER, once per connection. */
+  private async presetRooms(): Promise<boolean> {
+    if (this.presetRoomsCap === undefined) {
+      try {
+        const d = (await this.discoverSystem()) as { capabilities?: unknown };
+        this.presetRoomsCap = Array.isArray(d?.capabilities) && d.capabilities.includes("preset_rooms");
+      } catch {
+        return false;
+      }
+    }
+    return this.presetRoomsCap;
+  }
+
+  /** room: the room it belongs to, "" for house-wide, undefined to let the processor decide. */
+  async savePreset(preset: Record<string, unknown>, room?: string): Promise<Record<string, unknown>> {
+    const p = { ...preset };
+    if (room !== undefined) {
+      if (await this.presetRooms()) p.room = room;
+      else if (room) p.rooms = [room]; // older modules: file it under that room
+    }
+    return this.presetResult(await this.sendCommand(`PRESET_SAVE:${JSON.stringify(p)}`));
   }
 
   async listPresets(room?: string): Promise<Record<string, unknown>> {
     return this.presetResult(await this.sendCommand(room ? `PRESET_LIST:${room}` : "PRESET_LIST"));
   }
 
-  async removePreset(preset: string): Promise<Record<string, unknown>> {
+  /** room (modules 1.16.0+): that room's preset, "" the whole-house one; undefined = no scope. */
+  async removePreset(preset: string, room?: string): Promise<Record<string, unknown>> {
+    if (preset.includes(":")) return { success: false, error: "Preset names can't contain ':'." };
+    const inRoom = room !== undefined && (await this.presetRooms()) ? `:${room}` : "";
     // Modules 1.14.0+ answer with DATA, listing any schedules that recall the preset (used_by).
-    const r = this.presetResult(await this.sendCommand(`PRESET_REMOVE:${preset}`));
+    const r = this.presetResult(await this.sendCommand(`PRESET_REMOVE:${preset}${inRoom}`));
     return r.success ? { removed: preset, ...r } : r;
   }
 
-  async recallPreset(preset: string, fadeMs?: number): Promise<Record<string, unknown>> {
+  async recallPreset(preset: string, fadeMs?: number, room?: string): Promise<Record<string, unknown>> {
     if (preset.includes(":")) return { success: false, error: "Preset names can't contain ':'." };
-    const fade = fadeMs && fadeMs > 0 ? `:${Math.round(fadeMs)}` : "";
-    return this.presetResult(await this.sendCommand(`PRESET_RECALL:${preset}${fade}`));
+    const fade = fadeMs && fadeMs > 0 ? `${Math.round(fadeMs)}` : "";
+    const cmd =
+      room !== undefined && (await this.presetRooms())
+        ? `PRESET_RECALL:${preset}:${fade}:${room}`
+        : `PRESET_RECALL:${preset}${fade ? `:${fade}` : ""}`;
+    return this.presetResult(await this.sendCommand(cmd));
   }
 
   /**

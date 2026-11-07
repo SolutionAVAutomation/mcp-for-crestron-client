@@ -601,23 +601,36 @@ list and recall them after a reboot. Requires modules 1.13.0 or later (an older 
 `ERROR:1000`). Presets built into the SIMPL program are ordinary devices (buttons) and are not
 part of this.
 
+**Rooms (modules 1.16.0+, capability `preset_rooms`):** each preset belongs to one room, or to the
+whole house (`room` empty, reported as `"house_wide":true`). Names are unique within a room, so
+every room can have its own "Evening". A name is looked up in one scope, with no fallback to
+another: a room's preset (room given), the house-wide preset (room present but empty, as in
+`PRESET_RECALL:Party::`), or every preset of that name (room `*`). With no room at all, the name is
+found only when one preset has it. When it isn't found in the scope, `ERROR:1001` says where it
+does exist ("no 'All Off' in Lounge; it is in Bedroom and the whole house. Ask the user...") so a
+client can ask. Ids always work. Presets saved by 1.13 to 1.15 get a room on first start: the one room their
+devices are in, or house-wide when they span rooms.
+
 **Save or replace:** `PRESET_SAVE:<json>`. Everything after the first colon is the preset as JSON.
-Saving under the `id` or the name (case-insensitive) of an existing preset replaces it; otherwise
-a new one is created (`p1`, `p2`...).
+Saving under the `id`, or the name (case-insensitive) of an existing preset in the same room,
+replaces it; otherwise a new one is created (`p1`, `p2`...).
 
 ```
 PRESET_SAVE:{"name":"Reading","entries":[{"device_id":"Family_a1","value":"39321"},{"device_id":"Family_a2","value":"49151","duration_ms":2000}]}
-DATA:{"id":"p1","name":"Reading","rooms":["Family"],"entries":[...],"created":"2026-11-05 10:02","active":false,"replaced":false}
+DATA:{"id":"p1","name":"Reading","room":"Family","rooms":["Family"],"entries":[...],"created":"2026-11-05 10:02","active":false,"replaced":false}
 ```
 
 - `name`: up to 60 characters, no `:`.
 - `entries` (1 to 30, one per device): `{device_id, value}` sets, adding `duration_ms` fades an
   analog on recall, and `{device_id, pulse_ms}` presses a digital. Devices must exist and not be
   read-only.
-- `rooms` (optional): where the preset is filed. By default, the rooms of its devices.
+- `room` (optional, 1.16.0+): the room it belongs to, or `""` for house-wide. By default the one
+  room its devices are in, or house-wide when they span rooms. `rooms` in the reply lists the
+  rooms its devices are in. (Before 1.16.0, `rooms` chose where it was filed.)
 - At most 100 presets. Errors come back as `ERROR:1001:<reason>`.
 
-**List:** `PRESET_LIST` or `PRESET_LIST:<room>` (case-insensitive room name)
+**List:** `PRESET_LIST` or `PRESET_LIST:<room>` (case-insensitive room name; from 1.16.0 a room's
+list also includes the house-wide presets)
 
 ```
 DATA:{"storage":"data store","count":1,"max":100,"presets":[{"id":"p1","name":"Reading",...,"active":true}],"room":"Family"}
@@ -627,15 +640,23 @@ DATA:{"storage":"data store","count":1,"max":100,"presets":[{"id":"p1","name":"R
 full scale), false when one doesn't, and null when nothing can be checked (only digital presses,
 or write-only devices).
 
-**Recall:** `PRESET_RECALL:<id or name>[:fade_ms]`. Runs each entry through `SET` / `RAMP` /
-`PULSE`. `fade_ms` fades analog entries that have no `duration_ms` of their own.
+**Recall:** `PRESET_RECALL:<id or name>[:fade_ms[:room]]` (`fade_ms` may be empty, as in
+`PRESET_RECALL:Evening::Lounge`; the room part needs 1.16.0+). Runs each entry through `SET` /
+`RAMP` / `PULSE`. `fade_ms` fades analog entries that have no `duration_ms` of their own.
+`PRESET_RECALL:All Off::*` runs every preset called All Off, rooms first (alphabetically) and the
+house-wide one last, and answers `{"name","every_room":true,"presets":[{id,room|house_wide}],
+"applied","failed","results"}` with `results[].preset` naming each entry's preset.
+
+**Clashes:** presets that share a name can set the same device differently. A save, a list entry
+and an every-room recall report these as `"clashes":[{"device_id","presets":[{id,room|house_wide,
+value|pulse_ms}]}]` (save and recall add a `clash_note`), so a client can point them out.
 
 ```
 DATA:{"id":"p1","name":"Reading","applied":2,"failed":0,"results":[{"device_id":"Family_a1","ok":true},...]}
 ```
 
-**Remove:** `PRESET_REMOVE:<id or name>`. From modules 1.14.0 the reply lists any schedules that
-recall the preset, so a client can offer to change them:
+**Remove:** `PRESET_REMOVE:<id or name>[:room]` (room from 1.16.0). From modules 1.14.0 the reply
+lists any schedules that recall the preset, so a client can offer to change them:
 
 ```
 DATA:{"id":"p1","name":"Reading","removed":true,"used_by":[{"id":"s2","name":"Reading at 9pm"}],"note":"..."}
@@ -646,11 +667,17 @@ DATA:{"id":"p1","name":"Reading","removed":true,"used_by":[{"id":"s2","name":"Re
 `last_result` when it next runs.
 
 **Preset buttons (modules 1.15.0+):** the Preset Buttons module puts named presets on keypad or
-panel buttons; a button finds its preset by name. `PRESET_LIST` marks those presets
-`"on_button":true` and lists button names with no preset yet as `"unassigned_buttons":[...]`.
-`PRESET_REMOVE` of such a preset adds `"on_button":true` and a `button_note`, and saving a preset
-under a new name when the old one was on a button adds a `note`. Clients should check with the user
-before deleting or renaming a preset that is on a button.
+panel buttons; a button finds its preset by name in the module's Room (1.16.0+) and nowhere
+else. A button with no Room runs every preset of its name (`*`). `PRESET_LIST` marks those presets `"on_button":true` and lists buttons with no preset
+yet as `"unassigned_buttons"`, from 1.16.0 as `[{"name":"Evening","room":"Lounge"},...]` (`room`
+omitted for a button with no Room; 1.15.0 gave plain names). `PRESET_REMOVE` of such a preset adds
+`"on_button":true` and a `button_note`, and saving a preset that moves it off a button adds a
+`note`. Clients should check with the user before deleting or renaming a preset that is on a
+button.
+
+**Schedules:** a schedule action `{"preset":"Evening","preset_room":"Lounge"}` picks that room's
+preset (1.16.0+, `""` for the house-wide one) and is stored by id. `"preset_room":"*"` keeps the name and runs every preset of
+that name when the schedule fires, so rooms that get one later are included.
 
 **Licence and owner edits:** on an unlicensed processor `PRESET_LIST` and `PRESET_REMOVE` still
 work; saving and recalling need a licence. The integrator can turn off owner changes with the
