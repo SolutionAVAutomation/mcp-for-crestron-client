@@ -553,6 +553,10 @@ DATA:{"id":"s1","name":"Lounge shades down","when":{...},"actions":[...],"enable
 - `when.type`: `once` (needs `date` YYYY-MM-DD and `time`), `daily` (`time`), `weekly` (`time` and
   `days`), `sunrise` / `sunset` (optional `offset_min`, negative = before, -720..720, and
   optional `days`). Times are the processor's local 24-hour time, `HH:MM`.
+- `random_from_min` / `random_to_min` (optional, any type; modules 1.21.0+): a random window in
+  minutes from the time, -240..240, `from` < `to`. A new time inside it is drawn for each run, so
+  lights don't come on at the same minute every day. `0`..`30` only ever runs later; `-15`..`15`
+  runs either side. `next_run` shows the drawn time.
 - `days`: `mon`..`sun` (full names accepted), plus `weekdays` and `weekends`.
 - `actions` (1 to 20, run in order): `{device_id, value}` sets, adding `duration_ms` fades an
   analog, `{device_id, pulse_ms}` presses a digital, and `{preset}` recalls a saved preset (by

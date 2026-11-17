@@ -321,7 +321,10 @@ survive reboots. Each one has a `when` and a list of `actions`:
 - `when`: `{"type": "once", "date": "2026-11-02", "time": "07:30"}`, `{"type": "daily",
   "time": "06:00"}`, `{"type": "weekly", "time": "18:00", "days": ["mon", "wed", "fri"]}`, or
   `{"type": "sunset", "offset_min": -20, "days": ["weekdays"]}` (sunrise works the same way;
-  a negative offset is before). Times are the processor's local 24-hour time.
+  a negative offset is before). Times are the processor's local 24-hour time. For holiday or
+  security lighting add a random window: `"random_from_min": 0, "random_to_min": 30` runs up
+  to half an hour after the time (so never before sunset), `-15` to `15` runs either side, with
+  a new time drawn each run.
 - `actions`: like a scene. `{"device_id": "Lounge_a1", "value": "0"}` sets,
   `"duration_ms"` fades an analog, `{"device_id": "Lounge_d3", "pulse_ms": 300}` presses a
   button, and `{"preset": "Evening"}` recalls a saved preset. Expand "all the shades" into one

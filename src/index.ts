@@ -50,7 +50,7 @@ Presets: a room may have presets the integrator built into the program, usually 
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.`;
 
 const server = new McpServer(
-  { name: "crestron-control", version: "1.19.0" },
+  { name: "crestron-control", version: "1.20.0" },
   { instructions: OPERATING_BRIEF },
 );
 
@@ -445,7 +445,11 @@ server.registerTool(
       "(analog), press a digital button with pulse_ms, or recall a saved preset with preset. " +
       "Turn \"all the shades\" into one " +
       "action per shade from the room's devices. The result includes next_run; tell the user " +
-      "what will happen and when. Pass an existing id to change that schedule.",
+      "what will happen and when. Pass an existing id to change that schedule. For a time that " +
+      "should vary from day to day, so an empty house doesn't look timed (holiday or security " +
+      "lighting), add random_from_min and random_to_min: 0 to 30 runs up to half an hour after the " +
+      "time (after sunset, never before it), -15 to 15 runs within 15 minutes either side. A new time " +
+      "is drawn for each run.",
     inputSchema: {
       name: z.string().describe('Short description in the user\'s words, e.g. "Close lounge shades at sunset".'),
       when: z
@@ -458,6 +462,8 @@ server.registerTool(
             .optional()
             .describe('Weekdays for weekly, or to limit a sunrise/sunset schedule: "mon".."sun", "weekdays", "weekends".'),
           offset_min: z.number().int().optional().describe("Minutes from sunrise/sunset; negative = before."),
+          random_from_min: z.number().int().optional().describe("Start of a random window, minutes from the time (e.g. 0 or -15)."),
+          random_to_min: z.number().int().optional().describe("End of the random window, minutes from the time (e.g. 30 or 15); max 240 either side."),
         })
         .describe("When it runs."),
       actions: z
