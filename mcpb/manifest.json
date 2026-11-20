@@ -61,7 +61,7 @@
     "port": {
       "type": "number",
       "title": "Port",
-      "description": "TCP port the RoomTalk MCP server listens on.",
+      "description": "Use 50794 unless port forwarding has been set up.",
       "default": 50794,
       "required": false
     },
