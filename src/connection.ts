@@ -14,7 +14,7 @@ import * as crypto from "node:crypto";
 /** Where customers buy a license, and where the client fetches free trials. Overridable via
  *  env for testing (point at a local mock or the Stripe test-mode portal). The MAC is appended
  *  as ?mac= so the storefront/trial is bound to this processor. */
-const PORTAL_URL = process.env.CRESTRON_PORTAL_URL || "https://solutionav.com.au/crestron-mcp/";
+const PORTAL_URL = process.env.CRESTRON_PORTAL_URL || "https://solutionav.com.au/roomtalk-for-crestron/";
 const TRIAL_URL = process.env.CRESTRON_TRIAL_URL || "https://license.solutionav.com.au/trial";
 /** Host of the trial/licensing server, surfaced in the trial result so the assistant can say
  *  where a trial came from. The fetch happens inside this client, below the tool boundary, so
@@ -471,7 +471,7 @@ export class CrestronConnection {
     if (response.startsWith("ERROR:1000")) {
       return {
         error:
-          "This processor's MCP for Crestron modules are too old for processor info (it needs " +
+          "This processor's modules are too old for processor info (it needs " +
           "modules 1.12.0 or later). Update the modules (load the latest MCPForCrestron.clz, " +
           "recompile and upload the program), then try again.",
       };
@@ -734,7 +734,7 @@ export class CrestronConnection {
       return {
         success: false,
         error:
-          "This processor's MCP for Crestron modules are too old for schedules. Update the modules " +
+          "This processor's modules are too old for schedules. Update the modules " +
           "(load the latest MCPForCrestron.clz, recompile and upload the program), then try again.",
       };
     }
@@ -767,7 +767,7 @@ export class CrestronConnection {
       return {
         success: false,
         error:
-          "This processor's MCP for Crestron modules are too old for saved presets (1.13.0 or later " +
+          "This processor's modules are too old for saved presets (1.13.0 or later " +
           "needed). Update the modules (load the latest MCPForCrestron.clz, recompile and upload the " +
           "program), then try again.",
       };

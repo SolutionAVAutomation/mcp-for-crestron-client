@@ -1,6 +1,6 @@
-# Writing labels for MCP for Crestron
+# Writing labels for RoomTalk for Crestron
 
-The labels you set on the MCP for Crestron modules are what the assistant knows about
+The labels you set on the RoomTalk for Crestron modules are what the assistant knows about
 your system. It never sees your SIMPL program, only the room, category and label of
 each channel, plus the live values. A good label tells it what a channel is, how to
 drive it, and any rule it should follow. The assistant treats labels as the

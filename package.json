@@ -1,10 +1,10 @@
 {
-  "name": "mcp-for-crestron",
-  "version": "1.20.0",
-  "description": "MCP for Crestron: talk to a Crestron 4-Series AV system through Claude in natural language. Not affiliated with Crestron.",
+  "name": "roomtalk-for-crestron",
+  "version": "1.21.0",
+  "description": "RoomTalk for Crestron (formerly MCP for Crestron): talk to a Crestron 4-Series AV system through Claude in natural language. Not affiliated with Crestron.",
   "type": "module",
   "bin": {
-    "mcp-for-crestron": "dist/index.js"
+    "roomtalk-for-crestron": "dist/index.js"
   },
   "main": "dist/index.js",
   "files": [
@@ -22,16 +22,16 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "bundle": "bun build src/index.ts --target=node --format=esm --outfile mcpb/server/index.mjs",
-    "mcpb": "npm run bundle && mcpb pack mcpb mcp-for-crestron.mcpb",
+    "mcpb": "npm run bundle && mcpb pack mcpb roomtalk-for-crestron.mcpb",
     "prepublishOnly": "npm run build"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SolutionAVAutomation/mcp-for-crestron-client.git"
+    "url": "git+https://github.com/SolutionAVAutomation/roomtalk-for-crestron-client.git"
   },
   "homepage": "https://solutionav.com.au/crestron-mcp/",
   "bugs": {
-    "url": "https://github.com/SolutionAVAutomation/mcp-for-crestron-client/issues"
+    "url": "https://github.com/SolutionAVAutomation/roomtalk-for-crestron-client/issues"
   },
   "keywords": [
     "mcp",

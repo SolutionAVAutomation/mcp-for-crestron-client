@@ -1,12 +1,12 @@
-# Using MCP for Crestron with other AI apps
+# Using RoomTalk for Crestron with other AI apps
 
-MCP for Crestron is a standard MCP server that runs over stdio, so any app that can
+The RoomTalk for Crestron client is a standard MCP server that runs over stdio, so any app that can
 launch an MCP server can use it, with any model that handles tool calls well. Claude
 Desktop has a one-click installer (the `.mcpb`). Everything else runs it from npm.
 
 Every setup needs the same three things:
 
-- the command `npx -y mcp-for-crestron@latest`
+- the command `npx -y roomtalk-for-crestron@latest`
 - `CRESTRON_HOST`, the processor's IP address or hostname
 - `CRESTRON_KEY`, the processor's secure key, shown on the MCP Server Config module's
   `Key` output (setting it turns on encryption and secure authentication)
@@ -29,7 +29,7 @@ mcpServers:
     command: npx
     args:
       - -y
-      - mcp-for-crestron@latest
+      - roomtalk-for-crestron@latest
     env:
       CRESTRON_HOST: "10.0.1.38"
       CRESTRON_KEY: "${CRESTRON_KEY}"
@@ -48,7 +48,7 @@ Restart LibreChat after changing either file, then pick the Crestron tools in a 
 claude mcp add crestron \
   --env CRESTRON_HOST=10.0.1.38 \
   --env CRESTRON_KEY=<the processor's secure key> \
-  -- npx -y mcp-for-crestron@latest
+  -- npx -y roomtalk-for-crestron@latest
 ```
 
 ## Any other MCP host
@@ -60,7 +60,7 @@ Most hosts take a JSON block like this one:
   "mcpServers": {
     "crestron": {
       "command": "npx",
-      "args": ["-y", "mcp-for-crestron@latest"],
+      "args": ["-y", "roomtalk-for-crestron@latest"],
       "env": {
         "CRESTRON_HOST": "10.0.1.38",
         "CRESTRON_KEY": "<the processor's secure key>"

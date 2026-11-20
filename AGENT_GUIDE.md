@@ -52,7 +52,7 @@ claude mcp add crestron \
   -e CRESTRON_HOST=<processor-ip> \
   -e CRESTRON_KEY=<secure-key> \
   -s user \
-  -- /path/to/mcp-for-crestron-<platform>
+  -- /path/to/roomtalk-for-crestron-<platform>
 ```
 
 Or a project `.mcp.json`:
@@ -61,7 +61,7 @@ Or a project `.mcp.json`:
 {
   "mcpServers": {
     "crestron": {
-      "command": "/path/to/mcp-for-crestron-<platform>",
+      "command": "/path/to/roomtalk-for-crestron-<platform>",
       "env": { "CRESTRON_HOST": "<processor-ip>", "CRESTRON_KEY": "<secure-key>" }
     }
   }

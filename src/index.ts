@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * MCP for Crestron client (Node/TypeScript)
+ * RoomTalk for Crestron client (Node/TypeScript)
  *
  * Exposes a Crestron 4-Series system to Claude over MCP. Connects to the
  * processor (or the simulator) using the text protocol in PROTOCOL.md.
@@ -50,7 +50,7 @@ Presets: a room may have presets the integrator built into the program, usually 
 Honesty: if the processor reports it is unlicensed or on a trial, mention it once, do not nag.`;
 
 const server = new McpServer(
-  { name: "crestron-control", version: "1.20.0" },
+  { name: "crestron-control", version: "1.21.0" },
   { instructions: OPERATING_BRIEF },
 );
 
@@ -221,7 +221,7 @@ server.registerTool(
     description:
       "Describe the processor itself: model, firmware, hostname, IP address, MAC, the running " +
       "program (slot, name, program comments), uptime, the processor's clock, time zone and " +
-      "location, the MCP for Crestron modules version, and how many devices, rooms and schedules " +
+      "location, the RoomTalk modules version, and how many devices, rooms and schedules " +
       "it holds. Use it for questions about the system rather than a device, and to explain " +
       "sunrise/sunset times (a location_warning means the location was never set).",
   },
@@ -755,12 +755,12 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(
-    `mcp-for-crestron: ready (target ${cfg.host}:${cfg.port}, ` +
+    `roomtalk-for-crestron: ready (target ${cfg.host}:${cfg.port}, ` +
       `${cfg.key ? "mode 2 key" : cfg.auth ? "mode 1 password" : "open"}${cfg.tls ? " + TLS" : ""})`,
   );
 }
 
 main().catch((e) => {
-  console.error("mcp-for-crestron: fatal", e);
+  console.error("roomtalk-for-crestron: fatal", e);
   process.exit(1);
 });

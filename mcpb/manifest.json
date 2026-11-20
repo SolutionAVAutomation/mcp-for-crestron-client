@@ -1,11 +1,11 @@
 {
   "manifest_version": "0.2",
-  "name": "mcp-for-crestron",
-  "display_name": "MCP for Crestron",
-  "version": "1.20.0",
+  "name": "roomtalk-for-crestron",
+  "display_name": "RoomTalk for Crestron",
+  "version": "1.21.0",
   "icon": "icon.png",
   "description": "Query and control a Crestron 4-Series AV system in natural language.",
-  "long_description": "Connects Claude to a Crestron 4-Series processor running the MCP for Crestron modules. Lets you discover rooms and devices, read and set lighting, AV, HVAC and shades, and smoothly ramp analog levels, all in plain English. Talks to the processor over the MCP for Crestron text protocol, with optional password (mode 1) or secure-key + TLS (mode 2) authentication. Crestron is a registered trademark of Crestron Electronics, Inc.; MCP for Crestron is a product of Solution AV Automation, not affiliated with or endorsed by Crestron.",
+  "long_description": "Connects Claude to a Crestron 4-Series processor running the RoomTalk for Crestron modules (or the earlier MCP for Crestron modules). Lets you discover rooms and devices, read and set lighting, AV, HVAC and shades, and smoothly ramp analog levels, all in plain English. Talks to the processor over the MCP for Crestron text protocol, with optional password (mode 1) or secure-key + TLS (mode 2) authentication. Crestron is a registered trademark of Crestron Electronics, Inc.; MCP for Crestron is a product of Solution AV Automation, not affiliated with or endorsed by Crestron.",
   "author": {
     "name": "Solution AV Automation"
   },
@@ -61,7 +61,7 @@
     "port": {
       "type": "number",
       "title": "Port",
-      "description": "TCP port the MCP for Crestron server listens on.",
+      "description": "TCP port the RoomTalk MCP server listens on.",
       "default": 50794,
       "required": false
     },

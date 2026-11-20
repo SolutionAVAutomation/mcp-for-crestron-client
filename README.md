@@ -1,24 +1,26 @@
-# MCP for Crestron client
+# RoomTalk for Crestron client
+
+RoomTalk for Crestron is the new name for MCP for Crestron; settings and tools are unchanged.
 
 Control a Crestron 4-Series AV system from Claude, in natural language. This is the
-client half of [MCP for Crestron](https://solutionav.com.au/crestron-mcp/): an MCP server
-that connects Claude (Desktop or Code) to a processor running the MCP for Crestron modules,
-exposing the system as MCP tools over stdio. It speaks the MCP for Crestron text protocol
+client half of [RoomTalk for Crestron](https://solutionav.com.au/roomtalk-for-crestron/): an MCP server
+that connects Claude (Desktop or Code) to a processor running the RoomTalk for Crestron modules,
+exposing the system as MCP tools over stdio. It speaks the RoomTalk text protocol
 (see [`PROTOCOL.md`](PROTOCOL.md)) over TCP, with secure-key + TLS authentication.
 
-[![MCP for Crestron: controlling a boardroom from Claude in plain English](demo-poster.jpg)](https://solutionav.com.au/mcp-for-crestron/media/mcp-for-crestron-demo-full.mp4)
+[![RoomTalk for Crestron: controlling a boardroom from Claude in plain English](demo-poster.jpg)](https://solutionav.com.au/roomtalk-for-crestron/media/mcp-for-crestron-demo-full.mp4)
 
-*Talk to your Crestron system in plain English. [Watch the full demo (1:19) »](https://solutionav.com.au/mcp-for-crestron/media/mcp-for-crestron-demo-full.mp4)*
+*Talk to your Crestron system in plain English. [Watch the full demo (1:19) »](https://solutionav.com.au/roomtalk-for-crestron/media/mcp-for-crestron-demo-full.mp4)*
 
 The client is **free**. Controlling a processor requires that processor to be licensed
 (or on a free trial). See [Licensing](#licensing). One processor licence is AUD $249
 (inc GST); each processor also gets three free 1-week trials. Get a licence at
-<https://solutionav.com.au/crestron-mcp/>.
+<https://solutionav.com.au/roomtalk-for-crestron/>.
 
 ## Install
 
 ### Claude Desktop (recommended)
-Download `mcp-for-crestron.mcpb` from <https://solutionav.com.au/crestron-mcp/> and open it
+Download `roomtalk-for-crestron.mcpb` from <https://solutionav.com.au/roomtalk-for-crestron/> and open it
 (or Settings → Extensions → Install). Enter the processor's address and its secure key
 (shown on the MCP Server Config module's `Key` output); the port defaults to `50794`.
 
@@ -29,7 +31,7 @@ No download needed. Run it straight from npm:
 claude mcp add crestron \
   --env CRESTRON_HOST=10.0.1.38 \
   --env CRESTRON_KEY=<the processor's secure key> \
-  -- npx -y mcp-for-crestron@latest
+  -- npx -y roomtalk-for-crestron@latest
 ```
 
 Using LibreChat or another MCP app, or choosing a model: see
@@ -77,7 +79,7 @@ every tool returns guidance that includes the processor's **activation code (its
 Two ways forward, both in chat:
 
 - **Free trial**: `start_crestron_trial` (no payment; up to 3 × 1 week per processor).
-- **Buy**: get a key for that MAC at <https://solutionav.com.au/crestron-mcp/>, paste it
+- **Buy**: get a key for that MAC at <https://solutionav.com.au/roomtalk-for-crestron/>, paste it
   in chat, and the assistant calls `activate_crestron_license`.
 
 The licence is stored **on the processor** (bound to its MAC), so it persists across
@@ -100,5 +102,5 @@ licence on the box.)
 
 ## Trademark
 
-Crestron is a registered trademark of Crestron Electronics, Inc.; MCP for Crestron is a
+Crestron is a registered trademark of Crestron Electronics, Inc.; RoomTalk is a
 product of Solution AV Automation, not affiliated with or endorsed by Crestron.
